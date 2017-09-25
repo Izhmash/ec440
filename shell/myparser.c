@@ -86,9 +86,9 @@ int get_tokens(int  input_chars,
             tokens[token_iter][token_char_iter] = input[i];
             token_char_iter++;
             if (i < input_chars) {
-                if (input[i + 1] == ' '
-                        || i == input_chars - 1 
-                        || strchr(meta, input[i + 1])) {
+                if (input[i + 1] == ' ' ||
+                        i == input_chars - 1 ||
+                        strchr(meta, input[i + 1])) {
                     tc++;
                 }
             }
