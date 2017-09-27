@@ -58,8 +58,20 @@ int main()
         }*/
 
         // Testing exec and arg building
+        pid_t pid;
+        int status;
+
         cmd = argv[0];
-        execvp(cmd, argv);
+        if ((pid = fork()) == 0) {
+            execvp(cmd, argv);
+        } else {
+            if (wait(&status) > 0) {
+                if (WIFEXITED(status)) {
+                    printf("Child process exited with %d status\n",
+                            WEXITSTATUS(status));
+                }
+            }
+        }
 
         //desc_tokens(tokens, token_count);
         /*const char *meta = "<>|&";

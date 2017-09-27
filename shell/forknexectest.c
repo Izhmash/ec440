@@ -17,6 +17,7 @@ int main()
     int status;
     if (pid = fork() == 0) {
         execvp(cmd, argv);
+    } else {
         if (wait(&status) >= 0) {
             if (WIFEXITED(status)) {
                 printf("Child process exited with %d status\n", 
