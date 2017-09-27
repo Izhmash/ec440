@@ -18,7 +18,8 @@ int main()
     char user_input[MAX_BUFF_SIZE];
     char tokens[MAX_TOKENS][MAX_TOKEN_SIZE];
     char *cmd;
-    char *argv[513];
+    char *argv[MAX_TOKENS+1];
+    char *argv2[MAX_TOKENS+1];
 
     do {
         memset(user_input, 0, sizeof(user_input));
@@ -31,12 +32,39 @@ int main()
         num_tokens = get_tokens(total_chars, user_input, tokens);
 
         //printf ("%d\n", total_chars);
-        //printf ("%d\n", token_count);
+        printf ("%d\n", num_tokens);
+        
+        // Build arg string array
+        int j;
+        for (j = 0; j < num_tokens; ++j) {
+            argv[j] = tokens[j];
+        }
+        argv[num_tokens] = NULL;
 
+        const char *meta = "<>|&"; 
+        // Check for first instance of meta character
+        
+
+        /*int i;
+        int meta_idx = -1;
+        for (i = 0; i < num_tokens; ++meta_idx) {
+            if (strchr(meta, tokens[0][i]) && meta_idx != -1) {
+                meta_idx = i;
+            }
+
+            if (meta_idx != -1) {
+                argv2[i - meta_idx] = tokens[i];
+            }
+        }*/
+
+        // Testing exec and arg building
+        cmd = argv[0];
+        execvp(cmd, argv);
 
         //desc_tokens(tokens, token_count);
-        const char *meta = "<>|&";
+        /*const char *meta = "<>|&";
         int last_state = 0; // 0: command, 1: arg, 2: pipe, 3: other meta
+        
         for (int i = 0; i < num_tokens; ++i) {
             printf("%s - ", tokens[i]);
             if (i == 0 || last_state == 2) {
@@ -61,7 +89,7 @@ int main()
                 last_state = 1;
                 printf("argument\n");
             }
-        }
+        }*/
         
     } while (running);
     return 0;

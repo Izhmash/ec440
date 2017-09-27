@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 
 #define MAX_BUFF_SIZE 512
 #define MAX_TOKEN_SIZE 32
@@ -26,8 +29,14 @@
 
         //printf ("%d\n", total_chars);
         //printf ("%d\n", token_count);
-
-
+        
+        //printf("%c\n", tokens[0][5]);
+        //char *cmd = tokens[0];
+        //char *argv[MAX_TOKENS];
+        //argv[0] = cmd;
+        //argv[1] = NULL;
+        //execvp(cmd, argv);
+        
         desc_tokens(tokens, token_count);
         
     } while (running);
@@ -56,20 +65,23 @@ int get_tokens(int  input_chars,
     int tc = 0;
     for (int i = 0; i < input_chars; ++i) {
         if (input[i] == ' ') {
-            token_char_iter = 0;
             if (i > 0) {
                 if (!strchr(meta, input[i - 1])) {
+                    tokens[token_iter][token_char_iter + 1] = '\0';
                     token_iter++;
                 }
             }
-        } else if (strchr(meta, input[i])) { // Special character
             token_char_iter = 0;
+        } else if (strchr(meta, input[i])) { // Special character
             if (i > 0) {
                 if (input[i - 1] != ' ' && !strchr(meta, input[i - 1])) {
+                    tokens[token_iter][token_char_iter + 1] = '\0';
                     token_iter++;
                 }
+                token_char_iter = 0;
             }
             tokens[token_iter][token_char_iter] = input[i];
+            tokens[token_iter][token_char_iter + 1] = '\0'; // Maybe not this one?
             tc++;
             token_iter++;
         } else {
@@ -84,6 +96,7 @@ int get_tokens(int  input_chars,
             }
         }
     }
+    //tokens[tc - 1][0] = NULL;
     return tc;
 }
 

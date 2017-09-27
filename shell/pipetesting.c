@@ -42,7 +42,7 @@ int main()
     argv[1] = NULL;
 
     argv2[0] = "grep";
-    argv2[1] = "pipe";
+    argv2[1] = "parse";
     argv2[2] = NULL;
 
     pid_t pid;
