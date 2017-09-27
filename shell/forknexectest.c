@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 
 int main()
 {
@@ -13,8 +14,15 @@ int main()
     argv[3] = NULL;
 
     pid_t pid;
+    int status;
     if (pid = fork() == 0) {
         execvp(cmd, argv);
+        if (wait(&status) >= 0) {
+            if (WIFEXITED(status)) {
+                printf("Child process exited with %d status\n", 
+                        WEXITSTATUS(status));
+            }
+        }
     }
     printf("The child has exec'd the command\n");
 }
