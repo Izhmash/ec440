@@ -1,3 +1,4 @@
+#include <myparser.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -6,16 +7,8 @@
 #define MAX_TOKEN_SIZE 32
 #define MAX_TOKENS 512
 
-int fetch_input(char input[MAX_BUFF_SIZE]);
 
-int get_tokens(int  input_chars,
-               char input[MAX_BUFF_SIZE],
-               char tokens[MAX_TOKENS][MAX_TOKEN_SIZE]);
-
-void desc_tokens(char tokens[MAX_TOKENS][MAX_TOKEN_SIZE],
-                 int  num_tokens);
-
-int main()
+/*int main()
 {
     int running = 1;
     char user_input[MAX_BUFF_SIZE];
@@ -34,15 +27,12 @@ int main()
         //printf ("%d\n", total_chars);
         //printf ("%d\n", token_count);
 
-        /*for(int i = 0; i < token_count; ++i) {
-            printf("%s\n", tokens[i]);
-        }*/
 
         desc_tokens(tokens, token_count);
         
     } while (running);
     return 0;
-}
+}*/
 
 // Returns number of chars in input
 int fetch_input(char input[MAX_BUFF_SIZE])
