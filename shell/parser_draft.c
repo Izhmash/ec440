@@ -32,7 +32,7 @@ int main()
         num_tokens = get_tokens(total_chars, user_input, tokens);
 
         //printf ("%d\n", total_chars);
-        printf ("%d\n", num_tokens);
+        //printf ("%d\n", num_tokens);
         
         // Build arg string array
         int j;
@@ -44,18 +44,23 @@ int main()
         const char *meta = "<>|&"; 
         // Check for first instance of meta character
         
-
-        /*int i;
+        int i;
         int meta_idx = -1;
-        for (i = 0; i < num_tokens; ++meta_idx) {
-            if (strchr(meta, tokens[0][i]) && meta_idx != -1) {
+        char *temp;
+        //temp = strchr(meta, argv[0][0]);
+        //printf("%d\n", ptr - meta);
+        
+        for (i = 0; i < num_tokens; ++i) {
+            temp = strchr(meta, argv[0][i]);
+            if (temp && meta_idx == -1) {
                 meta_idx = i;
             }
 
-            if (meta_idx != -1) {
-                argv2[i - meta_idx] = tokens[i];
-            }
-        }*/
+            //if (meta_idx != -1) {
+            //    argv2[i - meta_idx] = argv[i];
+            //}
+        }
+        printf("%s\n", argv[meta_idx]); //Works!
 
         // Testing exec and arg building
         pid_t pid;
