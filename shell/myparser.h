@@ -5,7 +5,7 @@
 #define MAX_TOKEN_SIZE 32
 #define MAX_TOKENS 512
 
-int fetch_input(char input[MAX_BUFF_SIZE]);
+int fetch_input(char input[MAX_BUFF_SIZE], int prompt);
 
 int get_tokens(int  input_chars,
                char input[MAX_BUFF_SIZE],

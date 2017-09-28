@@ -44,9 +44,11 @@
 }*/
 
 // Returns number of chars in input
-int fetch_input(char input[MAX_BUFF_SIZE])
+int fetch_input(char input[MAX_BUFF_SIZE], int prompt)
 {
-    printf("%s", "my_parser> ");
+    if (prompt == 1) {
+        printf("%s", "my_shell> ");
+    }
     char *in = fgets(input, MAX_BUFF_SIZE, stdin);
     if (in == NULL)
         exit(0);
