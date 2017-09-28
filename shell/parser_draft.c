@@ -38,6 +38,7 @@ int main()
         int j;
         for (j = 0; j < num_tokens; ++j) {
             argv[j] = tokens[j];
+            //printf("%c\n", argv[j][0]);
         }
         argv[num_tokens] = NULL;
 
@@ -50,8 +51,11 @@ int main()
         //temp = strchr(meta, argv[0][0]);
         //printf("%d\n", ptr - meta);
         
+        // Each child carries the rest of the args
+        // and spawns a new child if there is a pipe?
+
         for (i = 0; i < num_tokens; ++i) {
-            temp = strchr(meta, argv[0][i]);
+            temp = strchr(meta, argv[i][0]);
             if (temp && meta_idx == -1) {
                 meta_idx = i;
             }
@@ -60,6 +64,7 @@ int main()
             //    argv2[i - meta_idx] = argv[i];
             //}
         }
+        //printf("%d\n", meta_idx); //Works!
         printf("%s\n", argv[meta_idx]); //Works!
 
         // Testing exec and arg building
