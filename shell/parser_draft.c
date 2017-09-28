@@ -48,6 +48,8 @@ int main()
         int i;
         int meta_idx = -1;
         char *temp;
+        int num_tokens2 = 0;
+        char cur_meta;
         //temp = strchr(meta, argv[0][0]);
         //printf("%d\n", ptr - meta);
         
@@ -58,14 +60,21 @@ int main()
             temp = strchr(meta, argv[i][0]);
             if (temp && meta_idx == -1) {
                 meta_idx = i;
+                cur_meta = argv[meta_idx][0];
+                //i++;
+                continue;
             }
 
-            //if (meta_idx != -1) {
-            //    argv2[i - meta_idx] = argv[i];
-            //}
+            if (meta_idx != -1) {
+                argv2[i - meta_idx - 1] = argv[i];
+                num_tokens2++;
+            }
         }
         //printf("%d\n", meta_idx); //Works!
-        printf("%s\n", argv[meta_idx]); //Works!
+        //printf("%d\n", num_tokens2); 
+        //printf("%s\n", argv[meta_idx]); //Works!
+        //printf("%s\n", argv2[0]); //Works!
+        //printf("%c\n", cur_meta); //Works!
 
         // Testing exec and arg building
         pid_t pid;
