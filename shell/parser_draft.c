@@ -59,6 +59,9 @@ int main(int argc, char **argv)
         // and spawns a new child if there is a pipe?
 
         for (i = 0; i < num_tokens; ++i) {
+            if (args[i][0] == '&') {
+                background = 1;
+            }
             temp = strchr(meta, args[i][0]);
             if (temp && meta_idx == -1) {
                 meta_idx = i;
@@ -79,9 +82,6 @@ int main(int argc, char **argv)
         //printf("%c\n", cur_meta); //Works!
         
         // Redirection
-        if (cur_meta == '&') {
-            background = 1;
-        }
         
         int out, out_orig;
         if (cur_meta == '<') {
@@ -104,15 +104,19 @@ int main(int argc, char **argv)
         cmd = args[0];
         if ((pid = fork()) == 0) {
             execvp(cmd, args);
-        } else if (!background){
+        } else {
             // Close pipe
             fflush(stdout);
-            close(out);
+            if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
+                close(out);
+            }
             dup2(out_orig, fileno(stdout));
-            if (wait(&status) > 0) {
-                if (WIFEXITED(status)) {
-                    printf("Child process exited with %d status\n",
-                            WEXITSTATUS(status));
+            if (!background) {
+                if (wait(&status) > 0) {
+                    if (WIFEXITED(status)) {
+                        printf("Child process exited with %d status\n",
+                                WEXITSTATUS(status));
+                    }
                 }
             }
         }
