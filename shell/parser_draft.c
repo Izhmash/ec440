@@ -51,7 +51,7 @@ int main(int argc, char **argv)
         int meta_idx = -1;
         char *temp;
         int num_tokens2 = 0;
-        char cur_meta;
+        char cur_meta = ' ';
         //temp = strchr(meta, args[0][0]);
         //printf("%d\n", ptr - meta);
         
@@ -83,17 +83,25 @@ int main(int argc, char **argv)
         
         // Redirection
         
-        int out, out_orig;
-        if (cur_meta == '<') {
-            printf("Redirect input\n");
+        int out, out_orig/* = fileno(stdout)*/, in_orig/* = fileno(stdin)*/;
+        if (cur_meta == '<') { // Need to check if there is an arg after
+            printf("Redirect input\n"); //FIXME
+            int in;
+            if ((in = open(args2[0], O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH)) == -1) {
+                printf("Error: file %s not found.", args2[0]); 
+            }
+            in_orig = dup(fileno(stdin));
+
+            if (dup2(in, fileno(stdin)) == -1) { 
+                printf("Error: cannot redirect stdin."); 
+            }
         } else if (cur_meta == '>') {
             printf("Redirect output\n");
             int out = open(args2[0], O_RDWR|O_CREAT|O_APPEND, 0600);
-            int out_orig = dup(fileno(stdout));
+            out_orig = dup(fileno(stdout));
 
             if (dup2(out, fileno(stdout)) == -1) { 
-                perror("cannot redirect stdout"); 
-                return 255; 
+                printf("Error: cannot redirect stdout."); // Need to return to prompt
             }
         }
 
