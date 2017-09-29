@@ -31,6 +31,10 @@ int main(int argc, char **argv)
         int total_chars = 0;
 
         total_chars = fetch_input(user_input, argc);
+        if (total_chars == -1) {
+            printf("Error: input too long.\n");
+            continue;
+        }
         num_tokens = get_tokens(total_chars, user_input, tokens);
 
         //printf ("%d\n", total_chars);
@@ -88,12 +92,12 @@ int main(int argc, char **argv)
             printf("Redirect input\n"); //FIXME
             int in;
             if ((in = open(args2[0], O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH)) == -1) {
-                printf("Error: file %s not found.", args2[0]); 
+                printf("Error: file %s not found.\n", args2[0]); 
             }
             in_orig = dup(fileno(stdin));
 
             if (dup2(in, fileno(stdin)) == -1) { 
-                printf("Error: cannot redirect stdin."); 
+                printf("Error: cannot redirect stdin.\n"); 
             }
         } else if (cur_meta == '>') {
             printf("Redirect output\n");
@@ -101,7 +105,7 @@ int main(int argc, char **argv)
             out_orig = dup(fileno(stdout));
 
             if (dup2(out, fileno(stdout)) == -1) { 
-                printf("Error: cannot redirect stdout."); // Need to return to prompt
+                printf("Error: cannot redirect stdout.\n"); // Need to return to prompt
             }
         }
 

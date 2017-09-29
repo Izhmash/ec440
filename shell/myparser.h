@@ -1,7 +1,7 @@
 #ifndef MYPARSER_H_
 #define MYPARSER_H_
 
-#define MAX_BUFF_SIZE 512
+#define MAX_BUFF_SIZE 513
 #define MAX_TOKEN_SIZE 32
 #define MAX_TOKENS 512
 

@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
-#define MAX_BUFF_SIZE 512
+#define MAX_BUFF_SIZE 513
 #define MAX_TOKEN_SIZE 32
 #define MAX_TOKENS 512
 
@@ -46,10 +46,16 @@
 // Returns number of chars in input
 int fetch_input(char input[MAX_BUFF_SIZE], int prompt)
 {
+    input[MAX_BUFF_SIZE - 2] = '\0';
     if (prompt == 1) {
         printf("%s", "my_shell> ");
     }
     char *in = fgets(input, MAX_BUFF_SIZE, stdin);
+    // Check if input is too long
+    printf ("%c\n", input[MAX_BUFF_SIZE - 1]);
+    if (input[MAX_BUFF_SIZE - 2] != '\0') {
+        return -1;
+    }
     if (in == NULL)
         exit(0);
     return (unsigned)strlen(in) - 1;
