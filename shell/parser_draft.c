@@ -31,6 +31,8 @@ int main(int argc, char **argv)
 
         int num_tokens = 0;
         int total_chars = 0;
+        int num_pipes = 0;
+        int num_redirs = 0;
 
         total_chars = fetch_input(user_input, argc);
         if (total_chars == -1) {
@@ -42,12 +44,17 @@ int main(int argc, char **argv)
         //printf ("%d\n", total_chars);
         //printf ("%d\n", num_tokens);
         
-        // Build arg string array
+        // Build arg string array and get pipe info
         int j;
         for (j = 0; j < num_tokens; ++j) {
             args[j] = tokens[j];
-            //printf("%c\n", args[j][0]);
+            if (args[j][0] == '|') {
+                num_pipes++;
+            } else if (args[j][0] == '<' || args[j][0] == '>') {
+                num_redirs++;
+            }
         }
+        //printf("%d\n%d\n", num_redirs, num_pipes);
         args[num_tokens] = NULL;
 
         const char *meta = "<>|&"; 
@@ -81,11 +88,6 @@ int main(int argc, char **argv)
             }
         }
         args[meta_idx] = NULL; // Cap the args array
-        //printf("%d\n", meta_idx); //Works!
-        //printf("%d\n", num_tokens2); 
-        //printf("%s\n", args[meta_idx]); //Works!
-        //printf("%s\n", args2[0]); //Works!
-        //printf("%c\n", cur_meta); //Works!
         
         // Redirection
         
@@ -106,40 +108,47 @@ int main(int argc, char **argv)
                 continue;
             }
         } else if (cur_meta == '>') {
-            out = open(args2[0], O_RDWR|O_CREAT|O_APPEND, 0600);
+            out = open(args2[2], O_RDWR|O_CREAT|O_APPEND, 0600);
             out_orig = dup(fileno(stdout));
 
             if (dup2(out, fileno(stdout)) == -1) { 
                 printf("Error: cannot redirect stdout.\n");
                 continue;
             }
-        }
+        } //else if (cur_meta == '|') {
 
-        //TODO Kill zombie children
-        // Testing exec and arg building
+        //}
+
+        // Pipe making, child making, args and executing
+        //TODO support for multiple commands
         pid_t pid;
         //int status;
-        int fd[2];
-        pipe(fd);
-        fcntl(fd[1], F_SETFD, fcntl(fd[1], F_GETFD) | FD_CLOEXEC);
+        int hfd[2];
+        int pipefds[num_pipes * 2];
+        pipe(hfd); // To aid with errored children
+        // Make them pipes
+        for (i = 0; i < num_pipes; ++i) {
+            pipe(pipefds + (i * 2));
+        }
+        fcntl(hfd[1], F_SETFD, fcntl(hfd[1], F_GETFD) | FD_CLOEXEC);
 
         cmd = args[0]; // Need to address
 
         if ((pid = fork()) == 0) {
-            close(fd[0]);
+            close(hfd[0]);
             if (execvp(cmd, args) == -1) {
                 printf("Error: command not found");
             }
-            write(fd[1], &errno, sizeof(int));
+            write(hfd[1], &errno, sizeof(int));
             _exit(0);
         } else {
             // Close pipe
-            close(fd[1]);
-            while ((read(fd[0], &err, sizeof(errno))) == -1) {
+            close(hfd[1]);
+            while ((read(hfd[0], &err, sizeof(errno))) == -1) {
                 if (errno != EAGAIN && errno != EINTR) break;
             }
             // Do more stuff?
-            close(fd[0]);
+            close(hfd[0]);
             fflush(stdout);
             if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
                 close(out);
@@ -159,43 +168,13 @@ int main(int argc, char **argv)
                         printf("Error: waitpip");
                     }
                 }
-                if (WIFEXITED(err)) {
+                /*if (WIFEXITED(err)) {
                     printf("child exited with %d\n", WEXITSTATUS(err));
                 } else if (WIFSIGNALED(err)) {
                     printf("child killed by %d\n", WTERMSIG(err));
-                }
+                }*/
             }
         }
-        
-        //desc_tokens(tokens, token_count);
-        /*const char *meta = "<>|&";
-        int last_state = 0; // 0: command, 1: arg, 2: pipe, 3: other meta
-        
-        for (int i = 0; i < num_tokens; ++i) {
-            printf("%s - ", tokens[i]);
-            if (i == 0 || last_state == 2) {
-                last_state = 0;
-                printf("command\n");
-            } else if (strchr(meta, tokens[i][0])) {
-                if (tokens[i][0] == '|') {
-                    last_state = 2;
-                    printf("pipe\n");
-                }
-                else {
-                    last_state = 3;
-                    if (tokens[i][0] == '<') {
-                        printf("input redirect\n");
-                    } else if (tokens[i][0] == '>') {
-                        printf("output redirect\n");
-                    } else {
-                        printf("background\n");
-                    }
-                }
-            } else {
-                last_state = 1;
-                printf("argument\n");
-            }
-        }*/
         
     } while (running);
     return 0;

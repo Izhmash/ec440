@@ -52,7 +52,7 @@ int fetch_input(char input[MAX_BUFF_SIZE], int prompt)
     }
     char *in = fgets(input, MAX_BUFF_SIZE, stdin);
     // Check if input is too long
-    printf ("%c\n", input[MAX_BUFF_SIZE - 1]);
+    //printf ("%c\n", input[MAX_BUFF_SIZE - 1]);
     if (input[MAX_BUFF_SIZE - 2] != '\0') {
         return -1;
     }
@@ -71,7 +71,8 @@ int get_tokens(int  input_chars,
     int token_char_iter = 0;
     const char *meta = "<>|&";
     int tc = 0;
-    for (int i = 0; i < input_chars; ++i) {
+    int i;
+    for (i = 0; i < input_chars; ++i) {
         if (input[i] == ' ') {
             if (i > 0) {
                 if (!strchr(meta, input[i - 1])) {
@@ -115,7 +116,8 @@ void desc_tokens(char tokens[MAX_TOKENS][MAX_TOKEN_SIZE],
 {
    const char *meta = "<>|&";
    int last_state = 0; // 0: command, 1: arg, 2: pipe, 3: other meta
-   for (int i = 0; i < num_tokens; ++i) {
+   int i;
+   for (i = 0; i < num_tokens; ++i) {
        printf("%s - ", tokens[i]);
        if (i == 0 || last_state == 2) {
            last_state = 0;
