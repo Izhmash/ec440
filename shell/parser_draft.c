@@ -87,48 +87,60 @@ int main(int argc, char **argv)
         
         // Redirection
         
-        int out, out_orig/* = fileno(stdout)*/, in_orig/* = fileno(stdin)*/;
+        //TODO Add check for "<<" or ">>"
+        int out, out_orig/* = fileno(stdout)*/, in, in_orig/* = fileno(stdin)*/;
         if (cur_meta == '<') { // Need to check if there is an arg after
-            printf("Redirect input\n"); //FIXME
-            int in;
+            //printf("Redirect input\n"); //FIXME
             if ((in = open(args2[0], O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH)) == -1) {
                 printf("Error: file %s not found.\n", args2[0]); 
+                continue;
             }
             in_orig = dup(fileno(stdin));
 
             if (dup2(in, fileno(stdin)) == -1) { 
                 printf("Error: cannot redirect stdin.\n"); 
+                continue;
             }
         } else if (cur_meta == '>') {
-            printf("Redirect output\n");
-            int out = open(args2[0], O_RDWR|O_CREAT|O_APPEND, 0600);
+            //printf("Redirect output\n");
+            out = open(args2[0], O_RDWR|O_CREAT|O_APPEND, 0600);
             out_orig = dup(fileno(stdout));
 
             if (dup2(out, fileno(stdout)) == -1) { 
                 printf("Error: cannot redirect stdout.\n"); // Need to return to prompt
+                continue;
             }
         }
 
+        //TODO Kill zombie children
         // Testing exec and arg building
         pid_t pid;
         int status;
+        int fd[2];
+        //pipe(fd);
 
         cmd = args[0];
         if ((pid = fork()) == 0) {
-            execvp(cmd, args);
+            if (execvp(cmd, args) == -1) {
+                printf("Error: command not found");
+            }
         } else {
             // Close pipe
             fflush(stdout);
             if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
                 close(out);
             }
+            if (in > 2) {
+                close(in);
+            }
             dup2(out_orig, fileno(stdout));
+            dup2(in_orig, fileno(stdin));
             if (!background) {
                 if (wait(&status) > 0) {
-                    if (WIFEXITED(status)) {
+                    /*if (WIFEXITED(status)) {
                         printf("Child process exited with %d status\n",
                                 WEXITSTATUS(status));
-                    }
+                    }*/
                 }
             }
         }
