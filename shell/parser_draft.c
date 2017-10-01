@@ -8,6 +8,37 @@
 #include <errno.h>
 
 /*
+ * Input: index to 1st command; # cmd toks, pointers to tok array + cmd array
+ * Return: index to next meta character or -1 if none
+ */
+int make_args(int idx,
+              int num_tokens,
+              int *cmd_tokens,
+              char *args[], 
+              char *cmd[])
+{
+    int i;
+    int meta_idx;
+    *cmd_tokens = 0;
+    char *temp;
+    const char *meta = "<>|&"; 
+    for (i = idx; i < num_tokens; ++i) {
+        temp = strchr(meta, args[i][0]);
+        if (temp && meta_idx == -1) {
+            meta_idx = i;
+            cmd[i - idx + 1] = NULL;
+            return meta_idx;
+        }
+
+        cmd[i - idx] = args[i];
+        (*cmd_tokens)++;
+
+    }
+    cmd[i - idx + 1] = NULL;
+    return -1;
+}
+
+/*
  * Idea: Parse line, determine if there is 
  * at least one pipe.  Save all previous commands
  * into one array, then the rest into another.
@@ -31,6 +62,7 @@ int main(int argc, char **argv)
 
         int num_tokens = 0;
         int total_chars = 0;
+        int cmd_tokens = 0;
         int num_pipes = 0;
         int num_redirs = 0;
 
@@ -61,7 +93,7 @@ int main(int argc, char **argv)
         // Check for first instance of meta character
         
         int i;
-        int meta_idx = -1;
+        //int meta_idx = -1;
         char *temp;
         int num_tokens2 = 0;
         char cur_meta = ' ';
@@ -75,7 +107,8 @@ int main(int argc, char **argv)
             if (args[i][0] == '&') {
                 background = 1;
             }
-            temp = strchr(meta, args[i][0]);
+        }
+        /*    temp = strchr(meta, args[i][0]);
             if (temp && meta_idx == -1) {
                 meta_idx = i;
                 cur_meta = args[meta_idx][0];
@@ -87,18 +120,26 @@ int main(int argc, char **argv)
                 num_tokens2++;
             }
         }
-        args[meta_idx] = NULL; // Cap the args array
+        args[meta_idx] = NULL; // Cap the args array*/
+
+
+
+        int meta_idx = make_args(0, num_tokens, &cmd_tokens, args, args2);
+        //printf("%d\n", cmd_tokens);
+        if (meta_idx > 0) {
+            cur_meta = args[meta_idx][0];
+        }
         
         // Redirection
         
         //TODO Add check for "<<" or ">>"
         int out, out_orig, in, in_orig;
         if (cur_meta == '<') { //TODO Need to check if there is an arg after
-            if ((in = open(args2[0], 
+            if ((in = open(args[cmd_tokens + 1], 
                             O_RDONLY, 
                             S_IRUSR | S_IRGRP | S_IROTH
                             )) == -1) {
-                printf("Error: file %s not found.\n", args2[0]); 
+                printf("Error: file %s not found.\n", args2[cmd_tokens]); 
                 continue;
             }
             in_orig = dup(fileno(stdin));
@@ -108,7 +149,7 @@ int main(int argc, char **argv)
                 continue;
             }
         } else if (cur_meta == '>') {
-            out = open(args2[2], O_RDWR|O_CREAT|O_APPEND, 0600);
+            out = open(args[cmd_tokens + 1], O_RDWR|O_CREAT|O_APPEND, 0600);
             out_orig = dup(fileno(stdout));
 
             if (dup2(out, fileno(stdout)) == -1) { 
@@ -136,7 +177,7 @@ int main(int argc, char **argv)
 
         if ((pid = fork()) == 0) {
             close(hfd[0]);
-            if (execvp(cmd, args) == -1) {
+            if (execvp(cmd, args2) == -1) {
                 printf("Error: command not found");
             }
             write(hfd[1], &errno, sizeof(int));
