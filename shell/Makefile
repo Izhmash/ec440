@@ -1,2 +1,2 @@
-myshell: parser_draft.c
-	gcc -I . parser_draft.c myparser.c -o myshell
+myshell: myshell.c
+	gcc -I . myshell.c myparser.c -o myshell

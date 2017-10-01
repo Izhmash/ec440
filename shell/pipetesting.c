@@ -41,8 +41,8 @@ int main()
     argv[0] = "ls";
     argv[1] = NULL;
 
-    argv2[0] = "grep";
-    argv2[1] = "parse";
+    argv2[0] = "wc";
+    argv2[1] = NULL;
     argv2[2] = NULL;
 
     pid_t pid;
