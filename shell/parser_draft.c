@@ -6,6 +6,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <signal.h>
 
 /*
  * Input: index to 1st command; # cmd toks, pointers to tok array + cmd array
@@ -21,7 +22,7 @@ int make_args(int idx,
     int meta_idx = -1;
     *cmd_tokens = 0;
     char *temp;
-    const char *meta = "<>|&"; 
+    char *meta = "<>|&"; 
     for (i = idx; i < num_tokens; ++i) {
         temp = strchr(meta, args[i][0]);
         if (temp && meta_idx == -1) {
@@ -49,14 +50,15 @@ int main(int argc, char **argv)
 {
     int running = 1;
     int background = 0;
-    int err;
     char user_input[MAX_BUFF_SIZE];
     char tokens[MAX_TOKENS][MAX_TOKEN_SIZE];
-    char *cmd;
     char *args[MAX_TOKENS+1];
     char *args2[MAX_TOKENS+1];
+    char buffer[MAX_TOKENS];
 
     do {
+        char *cmd;
+        int err;
         memset(user_input, 0, sizeof(user_input));
         memset(tokens, 0, sizeof(tokens[0][0]) * MAX_TOKENS * MAX_TOKEN_SIZE);
 
@@ -64,7 +66,8 @@ int main(int argc, char **argv)
         int total_chars = 0;
         int cmd_tokens = 0;
         int num_pipes = 0;
-        int num_redirs = 0;
+        int num_inredirs = 0;
+        int num_outredirs = 0;
 
         total_chars = fetch_input(user_input, argc);
         if (total_chars == -1) {
@@ -72,6 +75,9 @@ int main(int argc, char **argv)
             continue;
         }
         num_tokens = get_tokens(total_chars, user_input, tokens);
+        if (num_tokens == 0) {
+            continue;
+        }
 
         //printf ("%d\n", total_chars);
         //printf ("%d\n", num_tokens);
@@ -82,14 +88,20 @@ int main(int argc, char **argv)
             args[j] = tokens[j];
             if (args[j][0] == '|') {
                 num_pipes++;
-            } else if (args[j][0] == '<' || args[j][0] == '>') {
-                num_redirs++;
+            } else if (args[j][0] == '<') {
+                num_inredirs++;
+            } else if (args[j][0] == '>') {
+                num_outredirs++;
             }
+        }
+        if (num_inredirs > 1 || num_outredirs > 1) {
+            printf("Error: too many redirections\n");
+            continue;
         }
         //printf("%d\n%d\n", num_redirs, num_pipes);
         args[num_tokens] = NULL;
 
-        const char *meta = "<>|&"; 
+        char *meta = "<>|&"; 
         // Check for first instance of meta character
         
         int i;
@@ -110,36 +122,14 @@ int main(int argc, char **argv)
                 continue;
             }
         }
-        if (args[i][num_tokens - 1] == '&') {
+        if (args[num_tokens - 1][0] == '&') {
             background = 1;
         }
-        /*    temp = strchr(meta, args[i][0]);
-            if (temp && meta_idx == -1) {
-                meta_idx = i;
-                cur_meta = args[meta_idx][0];
-                continue;
-            }
-
-            if (meta_idx != -1) {
-                args2[i - meta_idx - 1] = args[i];
-                num_tokens2++;
-            }
-        }
-        args[meta_idx] = NULL; // Cap the args array*/
-
-
-
-        int meta_idx = make_args(0, num_tokens, &cmd_tokens, args, args2);
-        //printf("%d\n", cmd_tokens);
-        if (meta_idx > 0) {
-            cur_meta = args[meta_idx][0];
-        }
-        
         // Redirection
         
         //TODO Add check for "<<" or ">>"
         int out, out_orig, in, in_orig;
-        if (cur_meta == '<') { //TODO Need to check if there is an arg after
+        /*if (cur_meta == '<') { //TODO Need to check if there is an arg after
             if ((in = open(args[cmd_tokens + 1], 
                             O_RDONLY, 
                             S_IRUSR | S_IRGRP | S_IROTH
@@ -161,67 +151,140 @@ int main(int argc, char **argv)
                 printf("Error: cannot redirect stdout.\n");
                 continue;
             }
-        } //else if (cur_meta == '|') {
+        }*/ //else if (cur_meta == '|') {
 
         //}
 
         // Pipe making, child making, args and executing
-        //TODO support for multiple commands
-        pid_t pid;
+        pid_t pid, pid2;
         //int status;
         int hfd[2];
-        int pipefds[num_pipes * 2];
+        //int pipefds[num_pipes * 2];
+        int pipefd[2];
         pipe(hfd); // To aid with errored children
         // Make them pipes
-        for (i = 0; i < num_pipes; ++i) {
-            pipe(pipefds + (i * 2));
-        }
+        pipe(pipefd);
         fcntl(hfd[1], F_SETFD, fcntl(hfd[1], F_GETFD) | FD_CLOEXEC);
 
-        cmd = args[0]; // Need to address
+        //cmd = args[0]; // Need to address
 
-        if ((pid = fork()) == 0) {
-            close(hfd[0]);
-            if (execvp(cmd, args2) == -1) {
-                printf("Error: command not found.\n");
+        int meta_idx = -1;
+        int cmd_idx = 0; 
+        int ccounter = 0;
+        int read_size = 0;
+        in_orig = dup(fileno(stdin));
+        out_orig = dup(fileno(stdout));
+
+        
+        //for (i = 0; i < num_pipes + 1; ++i) {
+            meta_idx = make_args(cmd_idx, num_tokens, &cmd_tokens, args, args2);
+            cmd = args2[0];
+            //printf("%d\n", cmd_tokens);
+            args2[cmd_tokens] = NULL; //Hacky fix
+            cmd_idx = meta_idx + 1;
+            if (num_outredirs && args[meta_idx][0] == '>') { // Redirect output
+                out = open(args[meta_idx + 1], O_RDWR|O_CREAT|O_APPEND, 0600);
+                out_orig = dup(fileno(stdout));
+
+                if (dup2(out, fileno(stdout)) == -1) { 
+                    printf("Error: cannot redirect stdout.\n");
+                    continue;
+                }
             }
-            write(hfd[1], &errno, sizeof(int));
-            _exit(0);
-        } else {
-            // Close pipe
-            close(hfd[1]);
-            while ((read(hfd[0], &err, sizeof(errno))) == -1) {
-                if (errno != EAGAIN && errno != EINTR) break;
+            if (num_inredirs && args[meta_idx][0] == '<') {
+                if ((in = open(args[cmd_tokens + 1], 
+                                O_RDONLY, 
+                                S_IRUSR | S_IRGRP | S_IROTH
+                                )) == -1) {
+                    printf("Error: file %s not found.\n", args2[cmd_tokens]); 
+                    continue;
+                }
+                in_orig = dup(fileno(stdin));
+
+                if (dup2(in, fileno(stdin)) == -1) { 
+                    printf("Error: cannot redirect stdin.\n"); 
+                    continue;
+                }
             }
-            // Do more stuff?
-            close(hfd[0]);
-            fflush(stdout);
-            if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
-                close(out);
-            }
-            if (in > 2) {
-                close(in);
-            }
-            dup2(out_orig, fileno(stdout));
-            dup2(in_orig, fileno(stdin));
-            if (!background) {
-                while (waitpid(pid, &err, 0) == -1) {
-                    /*if (WIFEXITED(err)) {
-                        printf("Child process exited with %d status\n",
-                                WEXITSTATUS(err));
-                    }*/
-                    if (errno != EINTR) {
-                        printf("Error: waitpip");
+            pid = fork();
+            if (pid == 0) {
+                close(hfd[0]);
+                if (num_pipes > 0) { // child 1
+                    pid2 = fork();
+                    close(hfd[0]);
+                    if (pid2 == 0) { //child 2
+                        dup2(pipefd[0], 0);
+                        close(pipefd[1]);
+                        meta_idx = make_args(meta_idx + 1, num_tokens, &cmd_tokens, args, args2);
+                        cmd = args2[0];
+                        args2[cmd_tokens] = NULL; //Hacky fix
+                        if (execvp(cmd, args2) == -1) {
+                            printf("Error: command not found.\n");
+                        }
+                        write(hfd[1], &errno, sizeof(int));
+                        _exit(0);
+                    } else if (pid2 > 0) { //parent 2
+                        dup2(pipefd[1], 1);
+                        close(pipefd[0]);
+                        if (execvp(cmd, args2) == -1) {
+                            printf("Error: command not found.\n");
+                        }
+                        write(hfd[1], &errno, sizeof(int));
+                        _exit(0);
+                        
+                    }
+                    write(hfd[1], &errno, sizeof(int));
+                    _exit(0);
+                } else { // No pipe
+                    if (execvp(cmd, args2) == -1) {
+                        printf("Error: command not found.\n");
+                    }
+                    write(hfd[1], &errno, sizeof(int));
+                    _exit(0);
+                }
+            } else { //parent 1
+                // Close pipe
+                close(hfd[1]);
+                while ((read(hfd[0], &err, sizeof(errno))) == -1) {
+                    if (errno != EAGAIN && errno != EINTR) break;
+                }
+                // Do more stuff?
+
+                //read_size = read(pipefd[0], buffer, MAX_TOKENS);
+                close(hfd[0]);
+                fflush(stdout);
+                fflush(stdin);
+                if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
+                    close(out);
+                }
+                if (in > 2) {
+                    close(in);
+                }
+                //dup2(out_orig, fileno(stdout));
+                //dup2(in_orig, fileno(stdin));
+                dup2(0, pipefd[0]);
+                dup2(1, pipefd[1]);
+                close(pipefd[0]);
+                //printf("%s", buffer);
+                if (!background) {
+                    while (waitpid(pid2, &err, 0) == -1) {
+                        if (WIFEXITED(err)) {
+                            printf("Child process exited with %d status\n",
+                                    WEXITSTATUS(err));
+                        }
+                        if (errno != EINTR) {
+                            printf("Error: waitpid.\n");
+                            break;
+                        }
                     }
                 }
-                /*if (WIFEXITED(err)) {
-                    printf("child exited with %d\n", WEXITSTATUS(err));
-                } else if (WIFSIGNALED(err)) {
-                    printf("child killed by %d\n", WTERMSIG(err));
-                }*/
             }
-        }
-        
+        //dup2(in_orig, pipefd[0]);
+        //dup2(out_orig, pipefd[1]);
+        dup2(in_orig, fileno(stdin));
+        dup2(out_orig, fileno(stdout));
+        //close(in_orig);
+        //close(out_orig);
     } while (running);
     return 0;
 }
