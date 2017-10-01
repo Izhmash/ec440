@@ -5,6 +5,7 @@
 #include <myparser.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 
 /*
  * Idea: Parse line, determine if there is 
@@ -17,6 +18,7 @@ int main(int argc, char **argv)
 {
     int running = 1;
     int background = 0;
+    int err;
     char user_input[MAX_BUFF_SIZE];
     char tokens[MAX_TOKENS][MAX_TOKEN_SIZE];
     char *cmd;
@@ -88,10 +90,12 @@ int main(int argc, char **argv)
         // Redirection
         
         //TODO Add check for "<<" or ">>"
-        int out, out_orig/* = fileno(stdout)*/, in, in_orig/* = fileno(stdin)*/;
-        if (cur_meta == '<') { // Need to check if there is an arg after
-            //printf("Redirect input\n"); //FIXME
-            if ((in = open(args2[0], O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH)) == -1) {
+        int out, out_orig, in, in_orig;
+        if (cur_meta == '<') { //TODO Need to check if there is an arg after
+            if ((in = open(args2[0], 
+                            O_RDONLY, 
+                            S_IRUSR | S_IRGRP | S_IROTH
+                            )) == -1) {
                 printf("Error: file %s not found.\n", args2[0]); 
                 continue;
             }
@@ -102,12 +106,11 @@ int main(int argc, char **argv)
                 continue;
             }
         } else if (cur_meta == '>') {
-            //printf("Redirect output\n");
             out = open(args2[0], O_RDWR|O_CREAT|O_APPEND, 0600);
             out_orig = dup(fileno(stdout));
 
             if (dup2(out, fileno(stdout)) == -1) { 
-                printf("Error: cannot redirect stdout.\n"); // Need to return to prompt
+                printf("Error: cannot redirect stdout.\n");
                 continue;
             }
         }
@@ -115,17 +118,28 @@ int main(int argc, char **argv)
         //TODO Kill zombie children
         // Testing exec and arg building
         pid_t pid;
-        int status;
+        //int status;
         int fd[2];
-        //pipe(fd);
+        pipe(fd);
+        fcntl(fd[1], F_SETFD, fcntl(fd[1], F_GETFD) | FD_CLOEXEC);
 
-        cmd = args[0];
+        cmd = args[0]; // Need to address
+
         if ((pid = fork()) == 0) {
+            close(fd[0]);
             if (execvp(cmd, args) == -1) {
                 printf("Error: command not found");
             }
+            write(fd[1], &errno, sizeof(int));
+            _exit(0);
         } else {
             // Close pipe
+            close(fd[1]);
+            while ((read(fd[0], &err, sizeof(errno))) == -1) {
+                if (errno != EAGAIN && errno != EINTR) break;
+            }
+            // Do more stuff?
+            close(fd[0]);
             fflush(stdout);
             if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
                 close(out);
@@ -136,11 +150,19 @@ int main(int argc, char **argv)
             dup2(out_orig, fileno(stdout));
             dup2(in_orig, fileno(stdin));
             if (!background) {
-                if (wait(&status) > 0) {
-                    /*if (WIFEXITED(status)) {
+                while (waitpid(pid, &err, 0) == -1) {
+                    /*if (WIFEXITED(err)) {
                         printf("Child process exited with %d status\n",
-                                WEXITSTATUS(status));
+                                WEXITSTATUS(err));
                     }*/
+                    if (errno != EINTR) {
+                        printf("Error: waitpip");
+                    }
+                }
+                if (WIFEXITED(err)) {
+                    printf("child exited with %d\n", WEXITSTATUS(err));
+                } else if (WIFSIGNALED(err)) {
+                    printf("child killed by %d\n", WTERMSIG(err));
                 }
             }
         }
