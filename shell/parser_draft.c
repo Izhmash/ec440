@@ -18,7 +18,7 @@ int make_args(int idx,
               char *cmd[])
 {
     int i;
-    int meta_idx;
+    int meta_idx = -1;
     *cmd_tokens = 0;
     char *temp;
     const char *meta = "<>|&"; 
@@ -103,10 +103,15 @@ int main(int argc, char **argv)
         // Each child carries the rest of the args
         // and spawns a new child if there is a pipe?
 
-        for (i = 0; i < num_tokens; ++i) {
+        for (i = 0; i < num_tokens - 1; ++i) {
             if (args[i][0] == '&') {
-                background = 1;
+                //background = 1;
+                printf("Error: & must be at end of line\n");
+                continue;
             }
+        }
+        if (args[i][num_tokens - 1] == '&') {
+            background = 1;
         }
         /*    temp = strchr(meta, args[i][0]);
             if (temp && meta_idx == -1) {
@@ -178,7 +183,7 @@ int main(int argc, char **argv)
         if ((pid = fork()) == 0) {
             close(hfd[0]);
             if (execvp(cmd, args2) == -1) {
-                printf("Error: command not found");
+                printf("Error: command not found.\n");
             }
             write(hfd[1], &errno, sizeof(int));
             _exit(0);
