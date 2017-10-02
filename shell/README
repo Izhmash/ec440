@@ -7,3 +7,5 @@ Current state:
 
 Issues:
 * Piping with more than two commands does not work
+* Piping always outputs as if the '&' was included
+* Piping mixed with redirection causes unexpected behavior

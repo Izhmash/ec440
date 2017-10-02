@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 
         total_chars = fetch_input(user_input, argc);
         if (total_chars == -1) {
-            printf("Error: input too long.\n");
+            printf("ERROR: input too long.\n");
             continue;
         }
         num_tokens = get_tokens(total_chars, user_input, tokens);
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
             }
         }
         if (num_inredirs > 1 || num_outredirs > 1) {
-            printf("Error: too many redirections\n");
+            printf("ERROR: too many redirections\n");
             continue;
         }
         //printf("%d\n%d\n", num_redirs, num_pipes);
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
 
         for (i = 0; i < num_tokens - 1; ++i) {
             if (args[i][0] == '&') {
-                printf("Error: & must be at end of line\n");
+                printf("ERROR: & must be at end of line\n");
                 continue;
             }
         }
@@ -134,14 +134,17 @@ int main(int argc, char **argv)
         //pid_t pid, pid2;
         //int status;
         int hfd[2];
+        int hfd2[2];
         //int pipefds[num_pipes * 2];
         int pipefd[2];
         int r_pipe[2];
-        pipe(hfd); // To aid with errored children
         // Make them pipes
+        pipe(hfd); // To aid with errored children
+        pipe(hfd2);
         pipe(pipefd);
         pipe(r_pipe);
         fcntl(hfd[1], F_SETFD, fcntl(hfd[1], F_GETFD) | FD_CLOEXEC);
+        fcntl(hfd2[1], F_SETFD, fcntl(hfd2[1], F_GETFD) | FD_CLOEXEC);
 
         //cmd = args[0]; // Need to address
 
@@ -154,149 +157,144 @@ int main(int argc, char **argv)
 
         
         //for (i = 0; i < num_pipes + 1; ++i) {
-            meta_idx = make_args(cmd_idx, num_tokens, &cmd_tokens, args, args2);
-            cmd = args2[0];
-            //printf("%d\n", cmd_tokens);
-            args2[cmd_tokens] = NULL; //Hacky fix
-            cmd_idx = meta_idx + 1;
-            // Redirection in and out
-            if (num_tokens > 3 && args[meta_idx][0] == '<' && args[num_tokens - 2][0] == '>') {
-                out = open(args[num_tokens - 1], O_RDWR|O_CREAT|O_APPEND, 0600);
-                out_orig = dup(fileno(stdout));
-                if ((in = open(args[cmd_tokens + 1], 
-                                O_RDONLY, 
-                                S_IRUSR | S_IRGRP | S_IROTH
-                                )) == -1) {
-                    printf("Error: file %s not found.\n", args2[cmd_tokens]); 
-                    continue;
-                }
-                in_orig = dup(fileno(stdin));
-                if (dup2(out, fileno(stdout)) == -1) { 
-                    printf("Error: cannot redirect stdout.\n");
-                    continue;
-                }
-                if (dup2(in, fileno(stdin)) == -1) { 
-                    printf("Error: cannot redirect stdin.\n"); 
-                    continue;
-                }
-            // Redirect output
-            } else if (num_outredirs && args[meta_idx][0] == '>') {
-                out = open(args[meta_idx + 1], O_RDWR|O_CREAT|O_APPEND, 0600);
-                out_orig = dup(fileno(stdout));
-
-                if (dup2(out, fileno(stdout)) == -1) { 
-                    printf("Error: cannot redirect stdout.\n");
-                    continue;
-                }
-             // Redirect input
-            } else if (num_inredirs && args[meta_idx][0] == '<') {
-                if ((in = open(args[cmd_tokens + 1], 
-                                O_RDONLY, 
-                                S_IRUSR | S_IRGRP | S_IROTH
-                                )) == -1) {
-                    printf("Error: file %s not found.\n", args2[cmd_tokens]); 
-                    continue;
-                }
-                in_orig = dup(fileno(stdin));
-
-                if (dup2(in, fileno(stdin)) == -1) { 
-                    printf("Error: cannot redirect stdin.\n"); 
-                    continue;
-                }
+        meta_idx = make_args(cmd_idx, num_tokens, &cmd_tokens, args, args2);
+        cmd = args2[0];
+        //printf("%d\n", cmd_tokens);
+        args2[cmd_tokens] = NULL; //Hacky fix
+        cmd_idx = meta_idx + 1;
+        // Redirection in and out
+        if (num_tokens > 3 && args[meta_idx][0] == '<' && args[num_tokens - 2][0] == '>') {
+            out = open(args[num_tokens - 1], O_RDWR|O_CREAT|O_APPEND, 0600);
+            out_orig = dup(fileno(stdout));
+            if ((in = open(args[cmd_tokens + 1], 
+                            O_RDONLY, 
+                            S_IRUSR | S_IRGRP | S_IROTH
+                            )) == -1) {
+                printf("ERROR: file %s not found.\n", args2[cmd_tokens]); 
+                continue;
             }
-            // Shortcoming: Hard-coded to allow for one pipe w/ two commands.
-            pid = fork();
-            if (pid == 0) {
-                close(hfd[0]);
-                if (num_pipes > 0) { // child 1
-                    pid2 = fork();
-                    close(hfd[0]);
-                    if (pid2 == 0) { //child 2
-                        dup2(pipefd[0], 0);
-                        //dup2(r_pipe[1], fileno(stdout));
-                        close(pipefd[1]);
-                        //close(r_pipe[0]);
-                        meta_idx = make_args(meta_idx + 1, num_tokens, &cmd_tokens, args, args2);
-                        cmd = args2[0];
-                        args2[cmd_tokens] = NULL; //Hacky fix
-                        if (execvp(cmd, args2) == -1) {
-                            printf("Error: command not found.\n");
-                        }
-                        write(hfd[1], &errno, sizeof(int));
-                        _exit(0);
-                    } else if (pid2 > 0) { //parent 2
-                        dup2(pipefd[1], 1);
-                        close(pipefd[0]);
-                        if (execvp(cmd, args2) == -1) {
-                            printf("Error: command not found.\n");
-                        }
-                        while (waitpid(pid2, &err, 0) == -1) {
-                            if (WIFEXITED(err)) {
-                                printf("Child process exited with %d status\n",
-                                        WEXITSTATUS(err));
-                            }
-                            if (errno != EINTR) {
-                                printf("Error: waitpid.\n");
-                                break;
-                            }
-                        }
-                        write(hfd[1], &errno, sizeof(int));
-                        _exit(0);
-                        
-                    }
-                    write(hfd[1], &errno, sizeof(int));
-                    _exit(0);
-                } else { // No pipe
-                    if (execvp(cmd, args2) == -1) {
-                        printf("Error: command not found.\n");
-                    }
-                    write(hfd[1], &errno, sizeof(int));
-                    _exit(0);
-                }
-            } else { //parent 1
-                // Close pipe
-                close(hfd[1]);
-                while ((read(hfd[0], &err, sizeof(errno))) == -1) {
-                    if (errno != EAGAIN && errno != EINTR) break;
-                }
-                // Do more stuff?
+            in_orig = dup(fileno(stdin));
+            if (dup2(out, fileno(stdout)) == -1) { 
+                printf("ERROR: cannot redirect stdout.\n");
+                continue;
+            }
+            if (dup2(in, fileno(stdin)) == -1) { 
+                printf("ERROR: cannot redirect stdin.\n"); 
+                continue;
+            }
+            // Redirect output
+        } else if (num_outredirs && args[meta_idx][0] == '>') {
+            out = open(args[meta_idx + 1], O_RDWR|O_CREAT|O_APPEND, 0600);
+            out_orig = dup(fileno(stdout));
 
-                //read_size = read(r_pipe[0], buffer, MAX_TOKENS);
-                close(hfd[0]);
-                fflush(stdout);
-                fflush(stdin);
-                if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
-                    close(out);
-                }
-                if (in > 2) {
-                    close(in);
-                }
-                //dup2(out_orig, fileno(stdout));
-                //dup2(in_orig, fileno(stdin));
-                dup2(0, pipefd[0]);
-                dup2(1, pipefd[1]);
-                close(pipefd[0]);
-                //printf("%s", buffer);
-                if (!background) {
-                    while (waitpid(pid, &err, 0) == -1) {
+            if (dup2(out, fileno(stdout)) == -1) { 
+                printf("ERROR: cannot redirect stdout.\n");
+                continue;
+            }
+        // Redirect input
+        } else if (num_inredirs && args[meta_idx][0] == '<') {
+            if ((in = open(args[cmd_tokens + 1], 
+                            O_RDONLY, 
+                            S_IRUSR | S_IRGRP | S_IROTH
+                            )) == -1) {
+                printf("ERROR: file %s not found.\n", args2[cmd_tokens]); 
+                continue;
+            }
+            in_orig = dup(fileno(stdin));
+
+            if (dup2(in, fileno(stdin)) == -1) { 
+                printf("ERROR: cannot redirect stdin.\n"); 
+                continue;
+            }
+        }
+        // Shortcoming: Hard-coded to allow for one pipe w/ two commands.
+        pid = fork();
+        if (pid == 0) {
+            close(hfd[0]);
+            if (num_pipes > 0) { // child 1
+                pid2 = fork();
+                close(hfd2[0]);
+                if (pid2 == 0) { //child 2
+                    dup2(pipefd[0], 0);
+                    //dup2(r_pipe[1], fileno(stdout));
+                    close(pipefd[1]);
+                    //close(r_pipe[0]);
+                    meta_idx = make_args(meta_idx + 1, num_tokens, &cmd_tokens, args, args2);
+                    cmd = args2[0];
+                    args2[cmd_tokens] = NULL; //Hacky fix
+                    if (execvp(cmd, args2) == -1) {
+                        printf("ERROR: command not found.\n");
+                    }
+                    write(hfd2[1], &errno, sizeof(int));
+                    waitpid(pid2, NULL, WNOHANG); // Cleanup zombie children
+                    _exit(0);
+                } else if (pid2 > 0) { //parent 2
+                    dup2(pipefd[1], 1);
+                    close(pipefd[0]);
+                    if (execvp(cmd, args2) == -1) {
+                        printf("ERROR: command not found.\n");
+                    }
+                    while (waitpid(pid2, &err, 0) == -1) {
                         if (WIFEXITED(err)) {
                             printf("Child process exited with %d status\n",
                                     WEXITSTATUS(err));
                         }
                         if (errno != EINTR) {
-                            printf("Error: waitpid.\n");
+                            printf("ERROR: waitpid.\n");
                             break;
                         }
                     }
+                    write(hfd2[1], &errno, sizeof(int));
+                    waitpid(pid2, NULL, WNOHANG); // Cleanup zombie children
+                    _exit(0);
+                    
+                }
+                write(hfd2[1], &errno, sizeof(int));
+                _exit(0);
+            } else { // No pipe
+                if (execvp(cmd, args2) == -1) {
+                    printf("ERROR: command not found.\n");
+                }
+                write(hfd[1], &errno, sizeof(int));
+                waitpid(pid2, NULL, WNOHANG); // Cleanup zombie children
+                _exit(0);
+            }
+        } else { //parent 1
+            // Close pipe
+            close(hfd[1]);
+            while ((read(hfd[0], &err, sizeof(errno))) == -1) {
+                if (errno != EAGAIN && errno != EINTR) break;
+            }
+
+            close(hfd[0]);
+            close(hfd2[0]);
+            fflush(stdout);
+            fflush(stdin);
+            if (out > 2) { // 0 stdin, 1 stdout, 2 stderr
+                close(out);
+            }
+            if (in > 2) {
+                close(in);
+            }
+            dup2(0, pipefd[0]);
+            dup2(1, pipefd[1]);
+            close(pipefd[0]);
+            if (!background) {
+                while (waitpid(pid, &err, 0) == -1) {
+                    if (WIFEXITED(err)) {
+                        printf("Child process exited with %d status\n",
+                                WEXITSTATUS(err));
+                    }
+                    if (errno != EINTR) {
+                        printf("ERROR: waitpid.\n");
+                        break;
+                    }
                 }
             }
+        }
         waitpid(-1, NULL, WNOHANG); // Cleanup zombie children
-        //dup2(in_orig, pipefd[0]);
-        //dup2(out_orig, pipefd[1]);
         dup2(in_orig, fileno(stdin));
         dup2(out_orig, fileno(stdout));
-        //close(in_orig);
-        //close(out_orig);
         
     } while (running);
     kill(pid, SIGKILL);
