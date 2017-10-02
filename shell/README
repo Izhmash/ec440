@@ -1,0 +1,9 @@
+Current state:
+* Single commands with arguments work
+* Running programs in the background work
+* Input redirection and output redirection works on single commands
+* A single pipe between two commands will work
+* Unknown commands will raise an error and prompt the user again
+
+Issues:
+* Piping with more than two commands does not work

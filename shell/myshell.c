@@ -49,18 +49,21 @@ int make_args(int idx,
 int main(int argc, char **argv)
 {
     int running = 1;
-    int background = 0;
     char user_input[MAX_BUFF_SIZE];
     char tokens[MAX_TOKENS][MAX_TOKEN_SIZE];
     char *args[MAX_TOKENS+1];
     char *args2[MAX_TOKENS+1];
     char buffer[MAX_TOKENS];
+    pid_t pid, pid2;
 
     do {
         char *cmd;
         int err;
         memset(user_input, 0, sizeof(user_input));
         memset(tokens, 0, sizeof(tokens[0][0]) * MAX_TOKENS * MAX_TOKEN_SIZE);
+        memset(args, 0, sizeof(args[0]) * (MAX_TOKENS + 1));
+        memset(args2, 0, sizeof(args2[0]) * (MAX_TOKENS + 1));
+        memset(buffer, 0, sizeof(buffer[0]) * MAX_TOKENS + 1);
 
         int num_tokens = 0;
         int total_chars = 0;
@@ -68,6 +71,7 @@ int main(int argc, char **argv)
         int num_pipes = 0;
         int num_inredirs = 0;
         int num_outredirs = 0;
+        int background = 0;
 
         total_chars = fetch_input(user_input, argc);
         if (total_chars == -1) {
@@ -79,9 +83,6 @@ int main(int argc, char **argv)
             continue;
         }
 
-        //printf ("%d\n", total_chars);
-        //printf ("%d\n", num_tokens);
-        
         // Build arg string array and get pipe info
         int j;
         for (j = 0; j < num_tokens; ++j) {
@@ -117,7 +118,6 @@ int main(int argc, char **argv)
 
         for (i = 0; i < num_tokens - 1; ++i) {
             if (args[i][0] == '&') {
-                //background = 1;
                 printf("Error: & must be at end of line\n");
                 continue;
             }
@@ -129,41 +129,18 @@ int main(int argc, char **argv)
         
         //TODO Add check for "<<" or ">>"
         int out, out_orig, in, in_orig;
-        /*if (cur_meta == '<') { //TODO Need to check if there is an arg after
-            if ((in = open(args[cmd_tokens + 1], 
-                            O_RDONLY, 
-                            S_IRUSR | S_IRGRP | S_IROTH
-                            )) == -1) {
-                printf("Error: file %s not found.\n", args2[cmd_tokens]); 
-                continue;
-            }
-            in_orig = dup(fileno(stdin));
-
-            if (dup2(in, fileno(stdin)) == -1) { 
-                printf("Error: cannot redirect stdin.\n"); 
-                continue;
-            }
-        } else if (cur_meta == '>') {
-            out = open(args[cmd_tokens + 1], O_RDWR|O_CREAT|O_APPEND, 0600);
-            out_orig = dup(fileno(stdout));
-
-            if (dup2(out, fileno(stdout)) == -1) { 
-                printf("Error: cannot redirect stdout.\n");
-                continue;
-            }
-        }*/ //else if (cur_meta == '|') {
-
-        //}
 
         // Pipe making, child making, args and executing
-        pid_t pid, pid2;
+        //pid_t pid, pid2;
         //int status;
         int hfd[2];
         //int pipefds[num_pipes * 2];
         int pipefd[2];
+        int r_pipe[2];
         pipe(hfd); // To aid with errored children
         // Make them pipes
         pipe(pipefd);
+        pipe(r_pipe);
         fcntl(hfd[1], F_SETFD, fcntl(hfd[1], F_GETFD) | FD_CLOEXEC);
 
         //cmd = args[0]; // Need to address
@@ -182,7 +159,28 @@ int main(int argc, char **argv)
             //printf("%d\n", cmd_tokens);
             args2[cmd_tokens] = NULL; //Hacky fix
             cmd_idx = meta_idx + 1;
-            if (num_outredirs && args[meta_idx][0] == '>') { // Redirect output
+            // Redirection in and out
+            if (num_tokens > 3 && args[meta_idx][0] == '<' && args[num_tokens - 2][0] == '>') {
+                out = open(args[num_tokens - 1], O_RDWR|O_CREAT|O_APPEND, 0600);
+                out_orig = dup(fileno(stdout));
+                if ((in = open(args[cmd_tokens + 1], 
+                                O_RDONLY, 
+                                S_IRUSR | S_IRGRP | S_IROTH
+                                )) == -1) {
+                    printf("Error: file %s not found.\n", args2[cmd_tokens]); 
+                    continue;
+                }
+                in_orig = dup(fileno(stdin));
+                if (dup2(out, fileno(stdout)) == -1) { 
+                    printf("Error: cannot redirect stdout.\n");
+                    continue;
+                }
+                if (dup2(in, fileno(stdin)) == -1) { 
+                    printf("Error: cannot redirect stdin.\n"); 
+                    continue;
+                }
+            // Redirect output
+            } else if (num_outredirs && args[meta_idx][0] == '>') {
                 out = open(args[meta_idx + 1], O_RDWR|O_CREAT|O_APPEND, 0600);
                 out_orig = dup(fileno(stdout));
 
@@ -190,8 +188,8 @@ int main(int argc, char **argv)
                     printf("Error: cannot redirect stdout.\n");
                     continue;
                 }
-            }
-            if (num_inredirs && args[meta_idx][0] == '<') {
+             // Redirect input
+            } else if (num_inredirs && args[meta_idx][0] == '<') {
                 if ((in = open(args[cmd_tokens + 1], 
                                 O_RDONLY, 
                                 S_IRUSR | S_IRGRP | S_IROTH
@@ -206,6 +204,7 @@ int main(int argc, char **argv)
                     continue;
                 }
             }
+            // Shortcoming: Hard-coded to allow for one pipe w/ two commands.
             pid = fork();
             if (pid == 0) {
                 close(hfd[0]);
@@ -214,7 +213,9 @@ int main(int argc, char **argv)
                     close(hfd[0]);
                     if (pid2 == 0) { //child 2
                         dup2(pipefd[0], 0);
+                        //dup2(r_pipe[1], fileno(stdout));
                         close(pipefd[1]);
+                        //close(r_pipe[0]);
                         meta_idx = make_args(meta_idx + 1, num_tokens, &cmd_tokens, args, args2);
                         cmd = args2[0];
                         args2[cmd_tokens] = NULL; //Hacky fix
@@ -228,6 +229,16 @@ int main(int argc, char **argv)
                         close(pipefd[0]);
                         if (execvp(cmd, args2) == -1) {
                             printf("Error: command not found.\n");
+                        }
+                        while (waitpid(pid2, &err, 0) == -1) {
+                            if (WIFEXITED(err)) {
+                                printf("Child process exited with %d status\n",
+                                        WEXITSTATUS(err));
+                            }
+                            if (errno != EINTR) {
+                                printf("Error: waitpid.\n");
+                                break;
+                            }
                         }
                         write(hfd[1], &errno, sizeof(int));
                         _exit(0);
@@ -250,7 +261,7 @@ int main(int argc, char **argv)
                 }
                 // Do more stuff?
 
-                //read_size = read(pipefd[0], buffer, MAX_TOKENS);
+                //read_size = read(r_pipe[0], buffer, MAX_TOKENS);
                 close(hfd[0]);
                 fflush(stdout);
                 fflush(stdin);
@@ -267,7 +278,7 @@ int main(int argc, char **argv)
                 close(pipefd[0]);
                 //printf("%s", buffer);
                 if (!background) {
-                    while (waitpid(pid2, &err, 0) == -1) {
+                    while (waitpid(pid, &err, 0) == -1) {
                         if (WIFEXITED(err)) {
                             printf("Child process exited with %d status\n",
                                     WEXITSTATUS(err));
@@ -279,12 +290,16 @@ int main(int argc, char **argv)
                     }
                 }
             }
+        waitpid(-1, NULL, WNOHANG); // Cleanup zombie children
         //dup2(in_orig, pipefd[0]);
         //dup2(out_orig, pipefd[1]);
         dup2(in_orig, fileno(stdin));
         dup2(out_orig, fileno(stdout));
         //close(in_orig);
         //close(out_orig);
+        
     } while (running);
+    kill(pid, SIGKILL);
+    kill(pid2, SIGKILL);
     return 0;
 }
