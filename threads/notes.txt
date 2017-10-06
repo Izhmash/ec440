@@ -1,0 +1,7 @@
+Ways to implement threads:
+* clone
+* makecontext
+    * ucontext.h
+
+Ways to manage threads:
+    * semaphore.h
