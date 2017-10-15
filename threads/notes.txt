@@ -1,7 +1,15 @@
 Ways to implement threads:
-* clone
 * makecontext
     * ucontext.h
+* longjmp
 
 Ways to manage threads:
     * semaphore.h
+
+Implementation requirements:
+* pthread_create
+* pthread_exit
+* pthread_self
+
+Schedule threads
+*Context switch between threads every 50ms 
