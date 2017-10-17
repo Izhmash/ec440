@@ -1,4 +1,5 @@
-#define MAX_THREADS
+#define MAX_THREADS 180
+#define STACK_SIZE 32767
 
 // Thread control block
 static struct tcb {
@@ -9,3 +10,9 @@ static struct tcb {
 
 static jmp_buf root_env;
 static int thread_num = -1;
+
+void schedule()
+{
+    jmp_buf envthread;
+    int stack_space[STACK_SIZE];
+}

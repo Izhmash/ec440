@@ -13,3 +13,32 @@ Implementation requirements:
 
 Schedule threads
 *Context switch between threads every 50ms 
+
+setjmp() first called, returns zero.
+When setjmp() is called again after 
+a longjmp(), it will return the value passed
+into longjmp()
+
+if (setjmp(env)) {
+    // run stuff that goes after longjmp
+} else {
+    // run 1st time things
+}
+
+Scheduler always knows what thread is running.
+Alarm goes off, current thread is interrupted, scheduler runs.
+    -> then return to running thread
+
+in scheduler:
+if (setjmp(env_of_running_thread)) {
+    // scheduler had paused it at some time
+    // Since non-zero, longjmp() was called by someone
+    // return
+}
+
+longjmp into routine, return from handler.
+Calls to signal handler are pending.
+SA_NODEFER allows for many pending alarms.
+
+sigaction() note: if modifying variables, they should
+probably be static volatile ...
