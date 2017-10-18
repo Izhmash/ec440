@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <ptr_mangle.h>
+#include <string.h>
 
 #define MAX_THREADS 128
 #define STACK_SIZE  32767
@@ -18,7 +19,7 @@
 // Thread control block
 static struct pthread {
     pthread_t id;
-    jmp_buf env;       // Environment pointer
+    jmp_buf env;       // Environment variables
     int (*function)();   // Thread stack pointer
     //uint8_t *stack_addr;
     int state;
@@ -34,6 +35,19 @@ pthread_t cur_thread;
 int need_sched = 0;
 int need_setup = 1;
 struct sigaction act;
+
+/* Copy jmp_buf context */
+void copy_context(jmp_buf s, jmp_buf d)
+{
+    int i;
+    char *sb, *db;
+
+    sb = (char *) s;
+    db = (char *) d;
+    for (i = 0; i < sizeof(jmp_buf); i++) {
+        *db++ = *sb++;
+    }
+}
 
 
 /* Find new runable thread */
@@ -85,6 +99,7 @@ int pthread_create(
         printf("setting up thread environment\n");
         setup_threads(); // XXX temp?
     }
+    jmp_buf thread_env;
 
     struct pthread *pt;
     char *stack_space;
@@ -93,16 +108,21 @@ int pthread_create(
     int tid = num_threads++; // XXX temp?
     pt = &pthreads[num_threads];
     pt->id = tid;
-    pt->state = READY;
     cur_thread = pt->id; // XXX temp!!!
-        pt->function = (void *)start_routine;
-    if (setjmp(root_env)) {
+    pt->function = (void *)start_routine;
+    if (setjmp(pt->env)) {
         (*pt->function)(); // XXX super temporary but it works!!!
+        pt->state = EXITED; // function has returned
     } else {
-        longjmp(pthreads[pt->id].env, 1); // XXX testing the longjmp
+        // copy thread_env into created thread
+        //copy_context(thread_env, pthreads[pt->id].env);
+        //memcpy(&pthreads[pt->id].env, &thread_env, sizeof(jmp_buf));
+        pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
+        pt->env[0].__jmpbuf[PCIDX] = ptr_mangle((int)pt->function);
+        pt->state = READY;
     }
-    pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
-    pt->env[0].__jmpbuf[PCIDX] = ptr_mangle((int)pt->function);
+    // FIXME segfault here
+    longjmp(pthreads[pt->id].env, 1); // XXX testing the longjmp
     //printf("%d\n", pt->env[PCIDX]);
     return pt->id;
 }
