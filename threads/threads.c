@@ -32,6 +32,7 @@ jmp_buf root_env;
 int num_threads = -1;
 pthread_t cur_thread;
 int need_sched = 0;
+int need_setup = 1;
 struct sigaction act;
 
 
@@ -56,6 +57,7 @@ void kill_thread(pthread_t pid) {
 
 void setup_threads()
 {
+    need_setup--;
     struct pthread temp;
     int i;
     for (i = 0; i < MAX_THREADS; ++i) {
@@ -76,7 +78,10 @@ int pthread_create(
 	void *(*start_routine) (void *), 
 	void *arg) 
 {
-    setup_threads(); // XXX
+    if (need_setup) {
+        setup_threads(); // XXX
+    }
+
     struct pthread *pt;
     char *stack_space;
     stack_space = malloc(STACK_SIZE);
@@ -84,7 +89,10 @@ int pthread_create(
     int tid = num_threads++; // temp
     pt = &pthreads[num_threads];
     pt->id = tid;
-
+    pt->function = start_routine;
+    pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
+    //pt->env[PCIDX] = ptr_mangle((int)pt->function);
+    //printf("%d\n", pt->env[PCIDX]);
     
 }
 
