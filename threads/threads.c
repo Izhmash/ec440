@@ -19,9 +19,10 @@
 // Thread control block
 static struct pthread {
     pthread_t id;
-    jmp_buf env;       // Environment variables
-    int (*function)();   // Thread stack pointer
-    //uint8_t *stack_addr;
+    jmp_buf env;        // Environment variables
+    int (*function)();  // Thread function pointer
+    unsigned long *stack_store;  // 4 bytes?
+    int stack_addr;
     int state;
 #define EMPTY   0
 #define READY   1
@@ -54,15 +55,15 @@ void copy_context(jmp_buf s, jmp_buf d)
 void schedule()
 {
     need_sched = 0;
-    printf("scheduling!\n");
-    sigaction (SIGALRM, &act, 0);
-    ualarm(ALRM_TIME, 0);
+    //printf("scheduling!\n");
+    //sigaction (SIGALRM, &act, 0);
+    //ualarm(ALRM_TIME, 0);
 }
 
 /* handle timer interrupt */
 void interrupt(int val)
 {
-    printf("interrupted\n");
+    //printf("interrupted\n");
     schedule();
 }
 
@@ -82,13 +83,14 @@ void setup_threads()
     }
     act.sa_handler = interrupt;
     act.sa_flags = SA_NODEFER;
-    sigaction (SIGALRM, &act, 0);
-    ualarm(ALRM_TIME, 0);
+    //sigaction (SIGALRM, &act, 0);
+    //ualarm(ALRM_TIME, 0);
 }
 
 /* create new thread
  * return id
  */
+// NOTE: currently starting thread for testing; temp feature
 int pthread_create(
 	pthread_t *thread, 
     const pthread_attr_t *attr,
@@ -96,35 +98,51 @@ int pthread_create(
 	void *arg) 
 {
     if (need_setup) {
-        printf("setting up thread environment\n");
+        //printf("setting up thread environment\n");
         setup_threads(); // XXX temp?
     }
-    jmp_buf thread_env;
+    //jmp_buf thread_env;
 
-    struct pthread *pt;
-    char *stack_space;
-    stack_space = malloc(STACK_SIZE);
-    if (stack_space == NULL) return -1;
+    //struct pthread *pt;
+    int temp_thread = 1; // Need to replace with search
+    *thread = temp_thread;
+    unsigned long *stack_space;
+    
+
     int tid = num_threads++; // XXX temp?
-    pt = &pthreads[num_threads];
-    pt->id = tid;
-    cur_thread = pt->id; // XXX temp!!!
-    pt->function = (void *)start_routine;
-    if (setjmp(pt->env)) {
-        (*pt->function)(); // XXX super temporary but it works!!!
-        pt->state = EXITED; // function has returned
+    //pt = &pthreads[num_threads];
+    pthreads[temp_thread].id = tid;
+    cur_thread =pthreads[temp_thread].id; // XXX temp!!!
+
+    // stack it up
+    stack_space = malloc(sizeof(int)*STACK_SIZE/4);
+    if (stack_space == NULL) return -1;
+    pthreads[temp_thread].stack_store = stack_space;
+    pthreads[temp_thread].stack_store[(STACK_SIZE / 4) - 1] = (unsigned long)arg;
+    // Need to add exit code?
+    
+    // reg it up
+    //pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
+    //pt->env[0].__jmpbuf[PCIDX] = ptr_mangle((int)pt->function);
+    pthreads[temp_thread].stack_addr = ptr_mangle(
+            (int)pthreads[temp_thread].stack_store + (STACK_SIZE / 4) - 2);
+    pthreads[temp_thread].function = ptr_mangle((int)start_routine);
+    
+    // infinite loop here
+    if (setjmp(pthreads[temp_thread].env)) {
+        //printf("set jump!\n");
+        //(*pt->function)(); // XXX super temporary but it works!!!
+        //pt->state = EXITED; // function has returned
     } else {
         // copy thread_env into created thread
         //copy_context(thread_env, pthreads[pt->id].env);
         //memcpy(&pthreads[pt->id].env, &thread_env, sizeof(jmp_buf));
-        pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
-        pt->env[0].__jmpbuf[PCIDX] = ptr_mangle((int)pt->function);
-        pt->state = READY;
+        pthreads[temp_thread].state = READY;
     }
     // FIXME segfault here
-    longjmp(pthreads[pt->id].env, 1); // XXX testing the longjmp
+    longjmp(pthreads[temp_thread].env, 1); // XXX testing the longjmp
     //printf("%d\n", pt->env[PCIDX]);
-    return pt->id;
+    return pthreads[temp_thread].id;
 }
 
 void pthread_exit(void *value_ptr)
