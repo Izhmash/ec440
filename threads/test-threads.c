@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
 	}*/
     pthread_t thread;
     pthread_create(&thread, NULL, count, (void *)(12));
-    int i;
-    while(i < 10000000) i++;
+    long i;
+    while(i < 1000000000) i++;
     return 0;
 }
