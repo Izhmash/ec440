@@ -91,7 +91,7 @@ int pthread_create(
     pt->id = tid;
     pt->function = start_routine;
     pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
-    //pt->env[PCIDX] = ptr_mangle((int)pt->function);
+    pt->env[0].__jmpbuf[PCIDX] = ptr_mangle((int)pt->function);
     //printf("%d\n", pt->env[PCIDX]);
     
 }
