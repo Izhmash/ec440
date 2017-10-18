@@ -4,8 +4,16 @@
 
 #define THREAD_CNT 3
 
+// waste some more time
+void *itsafunc(void *arg)
+{
+    printf("Hey it's a function!\n");
+    return arg;
+}
+
 // waste some time 
-void *count(void *arg) {
+void *count(void *arg)
+{
 	unsigned long int c = (unsigned long int)arg;
 	int i;
 	for (i = 0; i < c; i++) {
@@ -17,7 +25,8 @@ void *count(void *arg) {
     return arg;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
 	/*pthread_t threads[THREAD_CNT];
 	int i;
 	unsigned long int cnt = 10000000;
@@ -32,8 +41,12 @@ int main(int argc, char **argv) {
 		pthread_join(threads[i], NULL);
 	}*/
     pthread_t thread;
-    pthread_create(&thread, NULL, count, (void *)(12));
-    long i;
-    while(i < 1000000000) i++;
+    pthread_create(&thread, NULL, count, (void *)(100000000));
+    /*int i = 0;
+    while(i < 100000) {
+        //printf("i: %d\n", i);
+        i++;
+    }
+    printf("i: %d\n", i);*/
     return 0;
 }

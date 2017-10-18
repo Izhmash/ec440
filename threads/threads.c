@@ -40,12 +40,15 @@ struct sigaction act;
 void schedule()
 {
     need_sched = 0;
-    printf("Scheduling!\n");
+    printf("scheduling!\n");
+    sigaction (SIGALRM, &act, 0);
+    ualarm(ALRM_TIME, 0);
 }
 
 /* handle timer interrupt */
 void interrupt(int val)
 {
+    printf("interrupted\n");
     schedule();
 }
 
@@ -79,21 +82,24 @@ int pthread_create(
 	void *arg) 
 {
     if (need_setup) {
-        setup_threads(); // XXX
+        printf("setting up thread environment\n");
+        setup_threads(); // XXX temp?
     }
 
     struct pthread *pt;
     char *stack_space;
     stack_space = malloc(STACK_SIZE);
     if (stack_space == NULL) return -1;
-    int tid = num_threads++; // temp
+    int tid = num_threads++; // XXX temp?
     pt = &pthreads[num_threads];
     pt->id = tid;
-    pt->function = start_routine;
+    cur_thread = pt->id; // XXX temp!!!
+    pt->function = (void *)start_routine;
+    (*pt->function)(); // XXX super temporary but it works!!!
     pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
     pt->env[0].__jmpbuf[PCIDX] = ptr_mangle((int)pt->function);
     //printf("%d\n", pt->env[PCIDX]);
-    
+    return pt->id;
 }
 
 void pthread_exit(void *value_ptr)
