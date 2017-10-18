@@ -93,9 +93,14 @@ int pthread_create(
     int tid = num_threads++; // XXX temp?
     pt = &pthreads[num_threads];
     pt->id = tid;
+    pt->state = READY;
     cur_thread = pt->id; // XXX temp!!!
-    pt->function = (void *)start_routine;
-    (*pt->function)(); // XXX super temporary but it works!!!
+        pt->function = (void *)start_routine;
+    if (setjmp(root_env)) {
+        (*pt->function)(); // XXX super temporary but it works!!!
+    } else {
+        longjmp(pthreads[pt->id].env, 1); // XXX testing the longjmp
+    }
     pt->env[0].__jmpbuf[SPIDX] = ptr_mangle((int)&stack_space);
     pt->env[0].__jmpbuf[PCIDX] = ptr_mangle((int)pt->function);
     //printf("%d\n", pt->env[PCIDX]);
