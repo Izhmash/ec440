@@ -40,8 +40,10 @@ int main(int argc, char **argv)
 	for(i = 0; i<THREAD_CNT; i++) {
 		pthread_join(threads[i], NULL);
 	}*/
-    pthread_t thread;
-    pthread_create(&thread, NULL, itsafunc, (void *)(100000000));
+    pthread_t thread1;
+    pthread_t thread2;
+    pthread_create(&thread1, NULL, itsafunc, (void *)(10000000));
+    pthread_create(&thread2, NULL, itsafunc, (void *)(10000000));
     /*int i = 0;
     while(i < 100000) {
         //printf("i: %d\n", i);

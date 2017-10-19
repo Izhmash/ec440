@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <ptr_mangle.h>
 #include <string.h>
 
 #define MAX_THREADS 128
@@ -40,6 +39,8 @@ static int need_sched = 0;
 static int need_setup = 1;
 struct sigaction act;
 static int thread_map[MAX_THREADS] = {0};
+
+int ptr_mangle(int p);
 
 /* Copy jmp_buf context */
 void copy_context(jmp_buf s, jmp_buf d)
@@ -92,21 +93,10 @@ void interrupt(int val)
     schedule();
 }
 
-void kill_thread(pthread_t pid) 
-{
-    int dst;
-    asm("mov %%eax, %0\n\t"
-            : "=r" (dst));
-    pthread_exit(NULL);
-}
-
-
 void setup_threads()
 {
     need_setup--;
     num_threads = 1;
-    struct pthread temp;
-    int i;
     /*for (i = 0; i < MAX_THREADS; ++i) {
         pthreads[i] = temp;
     }*/
@@ -161,7 +151,7 @@ int pthread_create(
     //if (stack_space == NULL) return -1;
     pthreads[temp_thread].stack_store = malloc(sizeof(int)*STACK_SIZE/4);
     pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 2] 
-        = (unsigned int)kill_thread;
+        = (unsigned int)pthread_exit;
     pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 1] 
         = (unsigned long)arg;
     
@@ -204,6 +194,19 @@ pthread_t pthread_self(void)
     return pthreads[cur_thread].id;
 }
 
+int ptr_mangle(int p)
+{
+	unsigned int ret;
+	asm(" movl %1, %%eax;\n"
+	" xorl %%gs:0x18, %%eax;\n"
+	" roll $0x9, %%eax;\n"
+	" movl %%eax, %0;\n"
+	: "=r"(ret)
+	: "r"(p)
+	: "%eax"
+	);
+	return ret;
+}
 
 /*void make_stack(pthread_t tid)
 {
