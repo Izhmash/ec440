@@ -17,7 +17,7 @@
 // TODO make method for getting new ID
 
 // Thread control block
-static struct pthread {
+struct pthread {
     pthread_t id;
     jmp_buf env;        // Environment variables
     //int (*function)();  // Thread function pointer
@@ -36,8 +36,8 @@ jmp_buf root_env;
 int num_threads = -1;
 pthread_t cur_thread = 0;
 pthread_t last_thread = 0;
-int need_sched = 0;
-int need_setup = 1;
+static int need_sched = 0;
+static int need_setup = 1;
 struct sigaction act;
 static int thread_map[MAX_THREADS] = {0};
 
@@ -145,7 +145,7 @@ int pthread_create(
 
        if (thread_map[i] == 0) {
            temp_thread = i;
-           break ;
+           break;
        }
     }
     int tid = temp_thread;
@@ -155,6 +155,7 @@ int pthread_create(
 
     num_threads++; // XXX need to replace
     pthreads[temp_thread].id = tid;
+    pthreads[temp_thread].state = EMPTY;
 
     // stack it up
     //if (stack_space == NULL) return -1;
@@ -162,11 +163,11 @@ int pthread_create(
     pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 2] 
         = (unsigned int)kill_thread;
     pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 1] 
-        = (unsigned long int)arg;
+        = (unsigned long)arg;
     
     // reg it up
     pthreads[temp_thread].stack_addr = ptr_mangle(
-            (int)pthreads[temp_thread].stack_store + (STACK_SIZE / 4) - 2);
+            (int)(pthreads[temp_thread].stack_store + (STACK_SIZE / 4) - 2));
     pthreads[temp_thread].function = ptr_mangle((int)start_routine);
     
     if (setjmp(pthreads[temp_thread].env)) {
