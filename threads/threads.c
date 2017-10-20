@@ -64,11 +64,25 @@ void schedule()
     if (!setjmp(pthreads[cur_thread].env)) {
         // TODO: clear stack space
         
+        if (!cur_thread) {
+            int i;
+            for (i = 0; i < MAX_THREADS; ++i) {
+
+                if (pthreads[i].state == EXITED) {
+                    if (pthreads[i].stack_store != NULL) {
+                        free(pthreads[i].stack_store);
+                    }
+                    pthreads[i].state = EMPTY;
+                }
+            }
+        }
+        
+        cur_thread++;
         while(pthreads[cur_thread].state != READY) {
+            cur_thread++;
             if (cur_thread > MAX_THREADS + 1) {
                 cur_thread = 0;
             }
-            cur_thread++;
         }
         if (pthreads[cur_thread].needs_setup == 1) {
 			pthreads[cur_thread].env[0].__jmpbuf[PCIDX] =
@@ -81,9 +95,11 @@ void schedule()
     	sigaction (SIGALRM, &act, 0);
     	ualarm(ALRM_TIME, 0);
 		longjmp(pthreads[cur_thread].env, 1);
+    } else {
+        // thread 1 seems to be looping here after longjmp
+        sigaction (SIGALRM, &act, 0);
+        ualarm(ALRM_TIME, 0);
     }
-    sigaction (SIGALRM, &act, 0);
-    ualarm(ALRM_TIME, 0);
 }
 
 /* handle timer interrupt */
@@ -127,6 +143,7 @@ int pthread_create(
 {
     int temp_thread;
     // get new id
+    thread_map[0] = 1;
     int i = last_thread;
     while (1) {
        if (i >= MAX_THREADS) {
@@ -137,6 +154,7 @@ int pthread_create(
            temp_thread = i;
            break;
        }
+       i++;
     }
     int tid = temp_thread;
     last_thread = temp_thread;
@@ -168,6 +186,7 @@ int pthread_create(
     pthreads[temp_thread].env[0].__jmpbuf[SPIDX] = pthreads[temp_thread].stack_addr;
     pthreads[temp_thread].env[0].__jmpbuf[PCIDX] = pthreads[temp_thread].function;
     longjmp(pthreads[temp_thread].env, 1); // XXX testing the longjmp*/
+    thread_map[temp_thread] = 1;
     pthreads[temp_thread].state = READY;
     pthreads[temp_thread].needs_setup = 1;
     if (need_setup) {
@@ -180,11 +199,19 @@ int pthread_create(
 void pthread_exit(void *value_ptr)
 {
     num_threads--;
+    if (num_threads == 0) {
+        need_setup++;
+    }
     thread_map[cur_thread] = 0;
     sigaction (SIGALRM, &act, 0);
     ualarm(0, 0); // turn off alarm temporarily
 
     pthreads[cur_thread].state = EXITED;
+    /*sigaction (SIGALRM, &act, 0);
+    ualarm(10, 0);
+    while(1) {
+        // wait for alarm
+    }*/
     schedule();
     __builtin_unreachable();
 }
