@@ -13,8 +13,6 @@
 #define SPIDX       4
 #define PCIDX       5
 
-// TODO make method for getting new ID
-
 // Thread control block
 struct pthread {
     pthread_t id;
@@ -29,21 +27,25 @@ struct pthread {
 #define READY   1
 #define EXITED  2
 #define WAITING 3
-} pthreads[MAX_THREADS];
+}; 
 
-jmp_buf root_env;
-int num_threads = -1;
-pthread_t cur_thread = 0;
-pthread_t last_thread = 0;
+static struct pthread pthreads[MAX_THREADS];
+void schedule();
+void setup_threads();
+
+//jmp_buf root_env;
+static int num_threads = 0;
+static pthread_t cur_thread = 0;
+static pthread_t last_thread = 0;
 static int need_sched = 0;
 static int need_setup = 1;
-struct sigaction act;
 static int thread_map[MAX_THREADS] = {0};
 
-int ptr_mangle(int p);
+static int ptr_mangle(int p);
+void interrupt(int val);
 
 /* Copy jmp_buf context */
-void copy_context(jmp_buf s, jmp_buf d)
+/*void copy_context(jmp_buf s, jmp_buf d)
 {
     int i;
     char *sb, *db;
@@ -53,7 +55,7 @@ void copy_context(jmp_buf s, jmp_buf d)
     for (i = 0; i < sizeof(jmp_buf); i++) {
         *db++ = *sb++;
     }
-}
+}*/
 
 
 /* Find new runable thread */
@@ -62,8 +64,8 @@ void schedule()
     need_sched = 0;
     //printf("scheduling!\n");
     if (!setjmp(pthreads[cur_thread].env)) {
-        // TODO: clear stack space
-        
+       
+        // Free stacks 
         if (!cur_thread) {
             int i;
             for (i = 0; i < MAX_THREADS; ++i) {
@@ -76,7 +78,7 @@ void schedule()
                 }
             }
         }
-        
+        // Find the next thread    
         cur_thread++;
         while(pthreads[cur_thread].state != READY) {
             cur_thread++;
@@ -84,6 +86,7 @@ void schedule()
                 cur_thread = 0;
             }
         }
+        // Thread 0 shouldn't pass this
         if (pthreads[cur_thread].needs_setup == 1) {
 			pthreads[cur_thread].env[0].__jmpbuf[PCIDX] =
 				pthreads[cur_thread].function;
@@ -92,11 +95,16 @@ void schedule()
 			pthreads[cur_thread].state = READY; 
 			pthreads[cur_thread].needs_setup = 0;
         }    
+        struct sigaction act;
+        act.sa_handler = interrupt;
+        act.sa_flags = SA_NODEFER;
     	sigaction (SIGALRM, &act, 0);
     	ualarm(ALRM_TIME, 0);
 		longjmp(pthreads[cur_thread].env, 1);
     } else {
-        // thread 1 seems to be looping here after longjmp
+        struct sigaction act;
+        act.sa_handler = interrupt;
+        act.sa_flags = SA_NODEFER;
         sigaction (SIGALRM, &act, 0);
         ualarm(ALRM_TIME, 0);
     }
@@ -112,10 +120,10 @@ void interrupt(int val)
 void setup_threads()
 {
     need_setup--;
-    num_threads = 1;
     /*for (i = 0; i < MAX_THREADS; ++i) {
         pthreads[i] = temp;
     }*/
+    struct sigaction act;
     act.sa_handler = interrupt;
     act.sa_flags = SA_NODEFER;
 
@@ -123,9 +131,10 @@ void setup_threads()
     pthreads[0].id = 0;
     pthreads[0].stack_store = NULL;
     pthreads[0].state = READY;
-    pthreads[0].needs_setup = 1;
+    pthreads[0].needs_setup = 0; // XXX
 
     setjmp(pthreads[0].env); // ready root thread
+    num_threads++;
     sigaction (SIGALRM, &act, 0);
     ualarm(ALRM_TIME, 0);
 	schedule();
@@ -134,7 +143,6 @@ void setup_threads()
 /* create new thread
  * return id
  */
-// NOTE: currently starting thread for testing; temp feature
 int pthread_create(
 	pthread_t *thread, 
     const pthread_attr_t *attr,
@@ -161,7 +169,6 @@ int pthread_create(
     *thread = temp_thread;
     //unsigned long *stack_space;
 
-    num_threads++; // XXX need to replace
     pthreads[temp_thread].id = tid;
     pthreads[temp_thread].state = EMPTY;
 
@@ -182,6 +189,7 @@ int pthread_create(
         //printf("set jump!\n");
     } else {
     }
+    num_threads++;
     /*// XXX These two will go in the scheduler
     pthreads[temp_thread].env[0].__jmpbuf[SPIDX] = pthreads[temp_thread].stack_addr;
     pthreads[temp_thread].env[0].__jmpbuf[PCIDX] = pthreads[temp_thread].function;
@@ -193,18 +201,24 @@ int pthread_create(
         //printf("setting up thread environment\n");
         setup_threads();
     }
+    // Schedule in for new thread
+    schedule();
     return 0;
 }
 
 void pthread_exit(void *value_ptr)
 {
     num_threads--;
+    struct sigaction act;
+    act.sa_handler = interrupt;
+    act.sa_flags = SA_NODEFER;
+    sigaction (SIGALRM, &act, 0);
+    ualarm(0, 0); // turn off alarm temporarily
+
     if (num_threads == 0) {
         need_setup++;
     }
     thread_map[cur_thread] = 0;
-    sigaction (SIGALRM, &act, 0);
-    ualarm(0, 0); // turn off alarm temporarily
 
     pthreads[cur_thread].state = EXITED;
     /*sigaction (SIGALRM, &act, 0);
@@ -218,7 +232,10 @@ void pthread_exit(void *value_ptr)
 
 pthread_t pthread_self(void)
 {
-    return pthreads[cur_thread].id;
+    if (cur_thread) {
+        return pthreads[cur_thread].id;
+    }
+    return -1;
 }
 
 int ptr_mangle(int p)
