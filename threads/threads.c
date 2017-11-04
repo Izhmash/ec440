@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <semaphore.h>
 #include <unistd.h>
 #include <signal.h>
 #include <setjmp.h>
@@ -6,10 +7,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/time.h>
 
 #define MAX_THREADS 128
 #define STACK_SIZE  32767
-#define ALRM_TIME   50000
+#define ALRM_TIME   50
 #define SPIDX       4
 #define PCIDX       5
 
@@ -22,11 +24,16 @@ struct pthread {
     unsigned long *stack_store;  // 4 bytes?
     int stack_addr;
     int state;
-    int needs_setup;
+    int prev_state;
+	void *exit_code;
+    pthread_t merger;
+    //int needs_setup;
 #define EMPTY   0
 #define READY   1
 #define EXITED  2
 #define WAITING 3
+#define SETUP	4
+#define BLOCKED	5
 }; 
 
 static struct pthread pthreads[MAX_THREADS];
@@ -37,12 +44,15 @@ void setup_threads();
 static int num_threads = 0;
 static pthread_t cur_thread = 0;
 static pthread_t last_thread = 0;
-static int need_sched = 0;
 static int need_setup = 1;
 static int thread_map[MAX_THREADS] = {0};
 
 static int ptr_mangle(int p);
 void interrupt(int val);
+void pthread_exit_wrapper();
+int pthread_join(pthread_t thread, void **value_ptr);
+void lock();
+void unlock();
 
 /* Copy jmp_buf context */
 /*void copy_context(jmp_buf s, jmp_buf d)
@@ -61,14 +71,13 @@ void interrupt(int val);
 /* Find new runable thread */
 void schedule()
 {
-    need_sched = 0;
     //printf("scheduling!\n");
     if (!setjmp(pthreads[cur_thread].env)) {
        
         // Free stacks 
         if (!cur_thread) {
             int i;
-            for (i = 0; i < MAX_THREADS; ++i) {
+            for (i = 0; i < MAX_THREADS; i++) {
 
                 if (pthreads[i].state == EXITED) {
                     if (pthreads[i].stack_store != NULL) {
@@ -79,34 +88,42 @@ void schedule()
             }
         }
         // Find the next thread    
-        cur_thread++;
-        while(pthreads[cur_thread].state != READY) {
+		do {
             cur_thread++;
-            if (cur_thread > MAX_THREADS + 1) {
+            if (cur_thread > MAX_THREADS - 1) {
                 cur_thread = 0;
             }
-        }
+        } while(pthreads[cur_thread].state != READY
+				&& pthreads[cur_thread].state != SETUP);
         // Thread 0 shouldn't pass this
-        if (pthreads[cur_thread].needs_setup == 1) {
+        if (pthreads[cur_thread].state == SETUP) {
 			pthreads[cur_thread].env[0].__jmpbuf[PCIDX] =
 				pthreads[cur_thread].function;
         	pthreads[cur_thread].env[0].__jmpbuf[SPIDX] =
 				pthreads[cur_thread].stack_addr;
 			pthreads[cur_thread].state = READY; 
-			pthreads[cur_thread].needs_setup = 0;
+			//pthreads[cur_thread].needs_setup = 0;
         }    
-        struct sigaction act;
+        /*struct sigaction act;
         act.sa_handler = interrupt;
         act.sa_flags = SA_NODEFER;
     	sigaction (SIGALRM, &act, 0);
-    	ualarm(ALRM_TIME, 0);
+    	ualarm(ALRM_TIME, 0);*/
+		sigset_t signal_set;
+		sigemptyset(&signal_set);
+		sigaddset(&signal_set, SIGALRM);
+		sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 		longjmp(pthreads[cur_thread].env, 1);
     } else {
-        struct sigaction act;
+        /*struct sigaction act;
         act.sa_handler = interrupt;
         act.sa_flags = SA_NODEFER;
         sigaction (SIGALRM, &act, 0);
-        ualarm(ALRM_TIME, 0);
+        ualarm(ALRM_TIME, 0);*/
+		sigset_t signal_set;
+		sigemptyset(&signal_set);
+		sigaddset(&signal_set, SIGALRM);
+		sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
     }
 }
 
@@ -119,25 +136,38 @@ void interrupt(int val)
 
 void setup_threads()
 {
-    need_setup--;
+    need_setup = 0;
     /*for (i = 0; i < MAX_THREADS; ++i) {
         pthreads[i] = temp;
     }*/
-    struct sigaction act;
+    /*struct sigaction act;
     act.sa_handler = interrupt;
-    act.sa_flags = SA_NODEFER;
+    act.sa_flags = SA_NODEFER;*/
+
 
     // pthreads[0] is main thread
     pthreads[0].id = 0;
     pthreads[0].stack_store = NULL;
     pthreads[0].state = READY;
-    pthreads[0].needs_setup = 0; // XXX
+    //pthreads[0].needs_setup = 0; // XXX
+    pthreads[0].merger = -1;
 
     setjmp(pthreads[0].env); // ready root thread
     num_threads++;
-    sigaction (SIGALRM, &act, 0);
-    ualarm(ALRM_TIME, 0);
-	schedule();
+    /*sigaction (SIGALRM, &act, 0);
+    ualarm(ALRM_TIME, 0);*/
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_sigaction = schedule;
+	sigaction(SIGALRM, &sa, NULL);
+
+    struct itimerval timer;
+	timer.it_value.tv_usec = 10;
+	timer.it_value.tv_sec = 0;
+	timer.it_interval.tv_usec = ALRM_TIME * 1000;
+	timer.it_interval.tv_sec = 0;	
+	setitimer(ITIMER_REAL, &timer, NULL);
+	//schedule();
 }
 
 /* create new thread
@@ -153,7 +183,7 @@ int pthread_create(
     // get new id
     thread_map[0] = 1;
     int i = last_thread;
-    while (1) {
+    while (i <= MAX_THREADS) {
        if (i >= MAX_THREADS) {
            i = 0;
        } 
@@ -164,6 +194,11 @@ int pthread_create(
        }
        i++;
     }
+	
+	if (i == MAX_THREADS) {
+		perror("Thread limit reached.\n");
+		exit(1);
+	}
     int tid = temp_thread;
     last_thread = temp_thread;
     *thread = temp_thread;
@@ -171,56 +206,64 @@ int pthread_create(
 
     pthreads[temp_thread].id = tid;
     pthreads[temp_thread].state = EMPTY;
+    pthreads[temp_thread].merger = -1;
+    pthreads[temp_thread].exit_code = NULL;
 
     // stack it up
     //if (stack_space == NULL) return -1;
     pthreads[temp_thread].stack_store = malloc(sizeof(int)*STACK_SIZE/4);
-    pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 2] 
-        = (unsigned int)pthread_exit;
     pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 1] 
         = (unsigned long)arg;
+    pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 2] 
+        = (unsigned int)pthread_exit_wrapper;
     
     // reg it up
     pthreads[temp_thread].stack_addr = ptr_mangle(
             (int)(pthreads[temp_thread].stack_store + (STACK_SIZE / 4) - 2));
     pthreads[temp_thread].function = ptr_mangle((int)start_routine);
     
-    if (setjmp(pthreads[temp_thread].env)) {
-        //printf("set jump!\n");
-    } else {
-    }
+    setjmp(pthreads[temp_thread].env);
     num_threads++;
-    /*// XXX These two will go in the scheduler
-    pthreads[temp_thread].env[0].__jmpbuf[SPIDX] = pthreads[temp_thread].stack_addr;
-    pthreads[temp_thread].env[0].__jmpbuf[PCIDX] = pthreads[temp_thread].function;
-    longjmp(pthreads[temp_thread].env, 1); // XXX testing the longjmp*/
     thread_map[temp_thread] = 1;
-    pthreads[temp_thread].state = READY;
-    pthreads[temp_thread].needs_setup = 1;
+    pthreads[temp_thread].state = SETUP;
+    //pthreads[temp_thread].needs_setup = 1;
     if (need_setup) {
         //printf("setting up thread environment\n");
         setup_threads();
     }
     // Schedule in for new thread
-    schedule();
+    //schedule();
     return 0;
 }
 
 void pthread_exit(void *value_ptr)
 {
     num_threads--;
-    struct sigaction act;
+    /*struct sigaction act;
     act.sa_handler = interrupt;
     act.sa_flags = SA_NODEFER;
     sigaction (SIGALRM, &act, 0);
-    ualarm(0, 0); // turn off alarm temporarily
+    ualarm(0, 0); // turn off alarm temporarily*/
 
-    if (num_threads == 0) {
+	sigset_t signal_set;
+	sigemptyset(&signal_set);
+	sigaddset(&signal_set, SIGALRM);
+	sigprocmask(SIG_BLOCK, &signal_set, NULL);
+
+    /*if (num_threads == 0) {
         need_setup++;
-    }
+    }*/
     thread_map[cur_thread] = 0;
 
     pthreads[cur_thread].state = EXITED;
+    pthreads[cur_thread].exit_code = value_ptr;
+
+    if (pthreads[pthreads[cur_thread].merger].state == BLOCKED) {
+        if (pthreads[cur_thread].merger >= 0) {
+            pthreads[pthreads[cur_thread].merger].state
+                = pthreads[pthreads[cur_thread].merger].prev_state;
+        }
+    }
     /*sigaction (SIGALRM, &act, 0);
     ualarm(10, 0);
     while(1) {
@@ -236,6 +279,45 @@ pthread_t pthread_self(void)
         return pthreads[cur_thread].id;
     }
     return -1;
+}
+
+int pthread_join(pthread_t thread, void **value_ptr)
+{
+	value_ptr = &pthreads[thread].exit_code;	
+	pthread_t cur_state = pthreads[thread].state;
+	pthread_t cur_merg = pthreads[thread].merger;
+	if (cur_state != EMPTY && cur_state != EXITED) {
+        if (cur_merg == -1) {
+            pthreads[cur_thread].state = BLOCKED;
+            pthreads[thread].merger = pthreads[cur_thread].id;
+            pthreads[cur_thread].prev_state = pthreads[cur_thread].state;
+            schedule();
+        }
+	}
+    return 0;
+}
+
+void lock()
+{
+    sigset_t signal_set;
+    sigemptyset(&signal_set);
+    sigaddset(&signal_set, SIGALRM);
+    sigprocmask(SIG_BLOCK, &signal_set, NULL);
+}
+
+void unlock()
+{
+    sigset_t signal_set;
+    sigemptyset(&signal_set);
+    sigaddset(&signal_set, SIGALRM);
+    sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+}
+
+void pthread_exit_wrapper()
+{
+	unsigned int res;
+	asm("movl %%eax, %0\n":"=r"(res));
+	pthread_exit((void *) res);
 }
 
 int ptr_mangle(int p)

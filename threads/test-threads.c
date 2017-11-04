@@ -27,7 +27,7 @@ void *count(void *arg)
 
 int main(int argc, char **argv)
 {
-	/*pthread_t threads[THREAD_CNT];
+	pthread_t threads[THREAD_CNT];
 	int i;
 	unsigned long int cnt = 10000000;
 
@@ -39,16 +39,17 @@ int main(int argc, char **argv)
     //join all threads ... not important for proj2
 	for(i = 0; i<THREAD_CNT; i++) {
 		pthread_join(threads[i], NULL);
-	}*/
-    pthread_t thread1;
-    pthread_t thread2;
-    pthread_create(&thread1, NULL, count, (void *)(10000));
-    pthread_create(&thread2, NULL, count, (void *)(10000));
+	}
+    //pthread_t thread1;
+    //pthread_t thread2;
+    //pthread_create(&thread1, NULL, count, (void *)(10000));
+    //pthread_create(&thread2, NULL, count, (void *)(10000));
     /*int i = 0;
     while(i < 100000) {
         //printf("i: %d\n", i);
         i++;
     }
     printf("i: %d\n", i);*/
+    printf("Hey I'm finished!\n");
     return 0;
 }
