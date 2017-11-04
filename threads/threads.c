@@ -104,22 +104,12 @@ void schedule()
 			pthreads[cur_thread].state = READY; 
 			//pthreads[cur_thread].needs_setup = 0;
         }    
-        /*struct sigaction act;
-        act.sa_handler = interrupt;
-        act.sa_flags = SA_NODEFER;
-    	sigaction (SIGALRM, &act, 0);
-    	ualarm(ALRM_TIME, 0);*/
 		sigset_t signal_set;
 		sigemptyset(&signal_set);
 		sigaddset(&signal_set, SIGALRM);
 		sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 		longjmp(pthreads[cur_thread].env, 1);
     } else {
-        /*struct sigaction act;
-        act.sa_handler = interrupt;
-        act.sa_flags = SA_NODEFER;
-        sigaction (SIGALRM, &act, 0);
-        ualarm(ALRM_TIME, 0);*/
 		sigset_t signal_set;
 		sigemptyset(&signal_set);
 		sigaddset(&signal_set, SIGALRM);
@@ -137,29 +127,20 @@ void interrupt(int val)
 void setup_threads()
 {
     need_setup = 0;
-    /*for (i = 0; i < MAX_THREADS; ++i) {
-        pthreads[i] = temp;
-    }*/
-    /*struct sigaction act;
-    act.sa_handler = interrupt;
-    act.sa_flags = SA_NODEFER;*/
 
 
     // pthreads[0] is main thread
     pthreads[0].id = 0;
     pthreads[0].stack_store = NULL;
     pthreads[0].state = READY;
-    //pthreads[0].needs_setup = 0; // XXX
     pthreads[0].merger = -1;
 
     setjmp(pthreads[0].env); // ready root thread
     num_threads++;
-    /*sigaction (SIGALRM, &act, 0);
-    ualarm(ALRM_TIME, 0);*/
-	struct sigaction sa;
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_sigaction = schedule;
-	sigaction(SIGALRM, &sa, NULL);
+	struct sigaction act;
+	memset(&act, 0, sizeof(act));
+	act.sa_sigaction = schedule;
+	sigaction(SIGALRM, &act, NULL);
 
     struct itimerval timer;
 	timer.it_value.tv_usec = 10;
@@ -167,7 +148,6 @@ void setup_threads()
 	timer.it_interval.tv_usec = ALRM_TIME * 1000;
 	timer.it_interval.tv_sec = 0;	
 	setitimer(ITIMER_REAL, &timer, NULL);
-	//schedule();
 }
 
 /* create new thread
@@ -202,7 +182,6 @@ int pthread_create(
     int tid = temp_thread;
     last_thread = temp_thread;
     *thread = temp_thread;
-    //unsigned long *stack_space;
 
     pthreads[temp_thread].id = tid;
     pthreads[temp_thread].state = EMPTY;
@@ -210,7 +189,6 @@ int pthread_create(
     pthreads[temp_thread].exit_code = NULL;
 
     // stack it up
-    //if (stack_space == NULL) return -1;
     pthreads[temp_thread].stack_store = malloc(sizeof(int)*STACK_SIZE/4);
     pthreads[temp_thread].stack_store[STACK_SIZE / 4 - 1] 
         = (unsigned long)arg;
@@ -226,33 +204,21 @@ int pthread_create(
     num_threads++;
     thread_map[temp_thread] = 1;
     pthreads[temp_thread].state = SETUP;
-    //pthreads[temp_thread].needs_setup = 1;
+
     if (need_setup) {
         //printf("setting up thread environment\n");
         setup_threads();
     }
-    // Schedule in for new thread
-    //schedule();
     return 0;
 }
 
 void pthread_exit(void *value_ptr)
 {
-    num_threads--;
-    /*struct sigaction act;
-    act.sa_handler = interrupt;
-    act.sa_flags = SA_NODEFER;
-    sigaction (SIGALRM, &act, 0);
-    ualarm(0, 0); // turn off alarm temporarily*/
-
 	sigset_t signal_set;
 	sigemptyset(&signal_set);
 	sigaddset(&signal_set, SIGALRM);
 	sigprocmask(SIG_BLOCK, &signal_set, NULL);
 
-    /*if (num_threads == 0) {
-        need_setup++;
-    }*/
     thread_map[cur_thread] = 0;
 
     pthreads[cur_thread].state = EXITED;
@@ -264,11 +230,7 @@ void pthread_exit(void *value_ptr)
                 = pthreads[pthreads[cur_thread].merger].prev_state;
         }
     }
-    /*sigaction (SIGALRM, &act, 0);
-    ualarm(10, 0);
-    while(1) {
-        // wait for alarm
-    }*/
+    num_threads--;
     schedule();
     __builtin_unreachable();
 }
@@ -288,15 +250,16 @@ int pthread_join(pthread_t thread, void **value_ptr)
 	pthread_t cur_merg = pthreads[thread].merger;
 	if (cur_state != EMPTY && cur_state != EXITED) {
         if (cur_merg == -1) {
+            pthreads[cur_thread].prev_state = pthreads[cur_thread].state;
             pthreads[cur_thread].state = BLOCKED;
             pthreads[thread].merger = pthreads[cur_thread].id;
-            pthreads[cur_thread].prev_state = pthreads[cur_thread].state;
             schedule();
         }
 	}
     return 0;
 }
 
+// Pause scheduling alarm
 void lock()
 {
     sigset_t signal_set;
@@ -305,6 +268,7 @@ void lock()
     sigprocmask(SIG_BLOCK, &signal_set, NULL);
 }
 
+// Start scheduling alarm
 void unlock()
 {
     sigset_t signal_set;
