@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include<pthread.h>
 #include<stdlib.h>
+#include "queue.h"
 
 #define THREAD_CNT 3
 
@@ -51,5 +52,6 @@ int main(int argc, char **argv)
     }
     printf("i: %d\n", i);*/
     printf("Hey I'm finished!\n");
+
     return 0;
 }

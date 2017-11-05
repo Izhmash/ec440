@@ -7,6 +7,11 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/time.h>
+#include <semaphore.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+#include "queue.h"
 
 #define MAX_THREADS 128
 #define STACK_SIZE  32767
@@ -295,6 +300,32 @@ int ptr_mangle(int p)
 	: "%eax"
 	);
 	return ret;
+}
+
+typedef struct {
+    int value;
+    struct Queue *q; 
+	int ready;
+} Semaphore;
+
+int sem_init(sem_t *sem, int pshared, unsigned value)
+{
+    return 0;
+}
+
+int sem_wait(sem_t *sem)
+{
+    return 0;
+}
+
+int sem_post(sem_t *sem)
+{
+    return 0;
+}
+
+int sem_destroy(sem_t *sem)
+{
+    return 0;
 }
 
 /*void make_stack(pthread_t tid)
