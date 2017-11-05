@@ -1,5 +1,7 @@
 #include "queue.h"
 
+// Referencing http://www.geeksforgeeks.org/queue-set-1introduction-and-array-implementation/
+
 struct Queue* init_queue(unsigned capacity)
 {
     struct Queue* queue = (struct Queue*) malloc(sizeof(struct Queue));
@@ -10,19 +12,22 @@ struct Queue* init_queue(unsigned capacity)
     return queue;
 }
  
-// Queue is full when size becomes equal to the capacity 
-int isFull(struct Queue* queue)
-{  return (queue->size == queue->capacity);  }
+// Check if queue hits capacity
+int is_full(struct Queue* queue)
+{  
+    return (queue->size == queue->capacity);  
+}
  
-// Queue is empty when size is 0
-int isEmpty(struct Queue* queue)
-{  return (queue->size == 0); }
+// Check if queue holds no values
+int is_empty(struct Queue* queue)
+{  
+    return (queue->size == 0); 
+}
  
-// Function to add an item to the queue.  
-// It changes rear and size
+// Add item to queue; edit rear and size
 void enqueue(struct Queue* queue, int item)
 {
-    if (isFull(queue))
+    if (is_full(queue))
         return;
     queue->rear = (queue->rear + 1)%queue->capacity;
     queue->array[queue->rear] = item;
@@ -30,12 +35,12 @@ void enqueue(struct Queue* queue, int item)
     printf("%d enqueued to queue\n", item);
 }
  
-// Function to remove an item from queue. 
-// It changes front and size
+// Add item to queue; edit front and size
 int dequeue(struct Queue* queue)
 {
-    if (isEmpty(queue))
-        return INT_MIN;
+    // Return negative 1 since pthread_self() > 0
+    if (is_empty(queue))
+        return -1;
     int item = queue->array[queue->front];
     queue->front = (queue->front + 1)%queue->capacity;
     queue->size = queue->size - 1;

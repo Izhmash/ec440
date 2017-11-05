@@ -75,7 +75,12 @@ void unlock();
 /* Find new runable thread */
 void schedule()
 {
+    //lock();
     //printf("scheduling!\n");
+    sigset_t signal_set;
+    sigemptyset(&signal_set);
+    sigaddset(&signal_set, SIGALRM);
+    sigprocmask(SIG_BLOCK, &signal_set, NULL);
     if (!setjmp(pthreads[cur_thread].env)) {
        
         // Free stacks 
@@ -112,12 +117,14 @@ void schedule()
 		sigemptyset(&signal_set);
 		sigaddset(&signal_set, SIGALRM);
 		sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+        //unlock();
 		longjmp(pthreads[cur_thread].env, 1);
     } else {
 		sigset_t signal_set;
 		sigemptyset(&signal_set);
 		sigaddset(&signal_set, SIGALRM);
 		sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+        //unlock();
     }
 }
 
@@ -218,10 +225,11 @@ int pthread_create(
 
 void pthread_exit(void *value_ptr)
 {
-	sigset_t signal_set;
+	/*sigset_t signal_set;
 	sigemptyset(&signal_set);
 	sigaddset(&signal_set, SIGALRM);
-	sigprocmask(SIG_BLOCK, &signal_set, NULL);
+	sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
+    lock();
 
     thread_map[cur_thread] = 0;
 
@@ -302,29 +310,96 @@ int ptr_mangle(int p)
 	return ret;
 }
 
-typedef struct {
-    int value;
+struct Semaphore
+{
+    int val;
     struct Queue *q; 
 	int ready;
-} Semaphore;
+};
 
 int sem_init(sem_t *sem, int pshared, unsigned value)
 {
+    struct Semaphore *sema = 
+        (struct Semaphore*) malloc(sizeof(struct Semaphore));
+
+    // Save semaphore initial value
+    sema->val = value;
+
+    // Init struct
+    struct Queue *queue = init_queue(500);
+    sema->q = queue;
+
+    sema->ready = 1;
+
+    // Store reference to my struct in sem_t struct
+    sem->__align = (long int)sema;  
     return 0;
 }
 
 int sem_wait(sem_t *sem)
 {
+    // Get the real Semaphore struct
+    lock();
+    struct Semaphore *sema = (struct Semaphore*) sem->__align;
+
+    if (!sema->ready) return -1;
+
+    pthread_t self = pthread_self();
+
+    // if blocked, push onto queue
+    if (sema->val == 0) {
+        enqueue(sema->q, self);
+
+        //pthreads[self].state = BLOCKED;
+        while (sema->val == 0) {
+            ;;
+        }
+    } 
+
+    lock();
+    sema->val--;
+    unlock();
+
     return 0;
 }
 
 int sem_post(sem_t *sem)
 {
+    // Get the real Semaphore struct
+    struct Semaphore *sema = (struct Semaphore*) sem->__align;
+    if (!sema->ready) return -1;
+
+    lock();
+    if (sema->val > 0) {
+        // Increment and return
+        sema->val++;
+        unlock();
+        return 0;
+    } else {
+        // Increment and wake thread up
+        sema->val++;
+        pthread_t thread = dequeue(sema->q);
+        unlock();
+        // Jump to the sleepy thread that can now wake up
+        longjmp(pthreads[thread].env, 1);
+    }
+    // Switch context to wake up blocked threads?
+    //schedule();
+
+    
     return 0;
 }
 
 int sem_destroy(sem_t *sem)
 {
+    // Get the real Semaphore struct
+    struct Semaphore *sema = (struct Semaphore*) sem->__align;
+    if (!sema->ready) return -1;
+
+    // Free queue
+    free(sema->q);
+    // Free semaphore
+    free(sema);
     return 0;
 }
 

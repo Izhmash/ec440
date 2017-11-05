@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
 
 struct Queue
 {
@@ -17,10 +16,10 @@ struct Queue
 struct Queue* init_queue(unsigned capacity);
  
 // Queue is full when size becomes equal to the capacity 
-int isFull(struct Queue* queue);
+int is_full(struct Queue* queue);
  
 // Queue is empty when size is 0
-int isEmpty(struct Queue* queue);
+int is_empty(struct Queue* queue);
  
 // Function to add an item to the queue.  
 // It changes rear and size
