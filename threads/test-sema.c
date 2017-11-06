@@ -11,18 +11,18 @@ sem_t sema;
 
 void tester()
 {
-    printf("i is %d\n", i);
+    printf("thread %d says i is %d\n", (int)pthread_self(), i);
 }
 
 // waste some more time
 void *itsafunc(void *arg)
 {
-    printf("Hey it's a function!\n");
+    printf("thread %d says \"Hey it's a function!\"\n", (int)pthread_self());
 
     sem_wait(&sema);
     i++;
     tester();
-    //sem_post(&sema);
+    sem_post(&sema);
 
     return arg;
 }

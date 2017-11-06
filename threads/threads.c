@@ -350,10 +350,12 @@ int sem_wait(sem_t *sem)
     if (sema->val == 0) {
         enqueue(sema->q, self);
 
-        //pthreads[self].state = BLOCKED;
-        while (sema->val == 0) {
+        // XXX NEXT TWO LINES *MIGHT* BE REALLY BAD
+        pthreads[self].state = BLOCKED;
+        schedule();
+        /*while (sema->val == 0) {
             ;;
-        }
+        }*/
     } 
 
     lock();
@@ -370,18 +372,21 @@ int sem_post(sem_t *sem)
     if (!sema->ready) return -1;
 
     lock();
-    if (sema->val > 0) {
-        // Increment and return
-        sema->val++;
+    sema->val++;
+    if (sema->val > 1) {
+        // Return right away
         unlock();
         return 0;
     } else {
         // Increment and wake thread up
-        sema->val++;
         pthread_t thread = dequeue(sema->q);
+        if (thread != -1) {
+            // If there was a thread waiting...
+            pthreads[thread].state = READY;
+        }
         unlock();
         // Jump to the sleepy thread that can now wake up
-        longjmp(pthreads[thread].env, 1);
+        //longjmp(pthreads[thread].env, 1);
     }
     // Switch context to wake up blocked threads?
     //schedule();
