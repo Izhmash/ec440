@@ -6,19 +6,22 @@
 
 struct Queue
 {
-    int front, rear, size;
-    unsigned capacity;
-    int* array;
+    int front;
+    int back;
+    int size;
+    unsigned int capacity;
+    int *array;
 };
 
-// Referencing http://www.geeksforgeeks.org/queue-set-1introduction-and-array-implementation/
+// Referencing http://www.geeksforgeeks.org/queue-set-1introduction-and-array-implementation/, http://opendatastructures.org/ods-cpp/2_3_Array_Based_Queue.html
 
 struct Queue* init_queue(unsigned capacity)
 {
     struct Queue* queue = (struct Queue*) malloc(sizeof(struct Queue));
     queue->capacity = capacity;
-    queue->front = queue->size = 0; 
-    queue->rear = capacity - 1;  // This is important, see the enqueue
+    queue->front = 0;
+    queue->size = 0; 
+    queue->back = capacity - 1;
     queue->array = (int*) malloc(queue->capacity * sizeof(int));
     return queue;
 }
@@ -26,24 +29,24 @@ struct Queue* init_queue(unsigned capacity)
 // Check if queue hits capacity
 int is_full(struct Queue* queue)
 {  
-    return (queue->size == queue->capacity);  
+    return queue->size == queue->capacity;  
 }
  
 // Check if queue holds no values
 int is_empty(struct Queue* queue)
 {  
-    return (queue->size == 0); 
+    return queue->size == 0; 
 }
  
-// Add item to queue; edit rear and size
+// Add item to queue; edit back and size
 void enqueue(struct Queue* queue, int item)
 {
     if (is_full(queue))
         return;
-    queue->rear = (queue->rear + 1)%queue->capacity;
-    queue->array[queue->rear] = item;
-    queue->size = queue->size + 1;
-    printf("%d enqueued to queue\n", item);
+    // Modulus causes wrap-around effect
+    queue->back = (queue->back + 1)%queue->capacity;
+    queue->array[queue->back] = item;
+    queue->size++;
 }
  
 // Add item to queue; edit front and size
@@ -53,8 +56,9 @@ int dequeue(struct Queue* queue)
     if (is_empty(queue))
         return -1;
     int item = queue->array[queue->front];
+    // Modulus causes wrap-around effect
     queue->front = (queue->front + 1)%queue->capacity;
-    queue->size = queue->size - 1;
+    queue->size--;
     return item;
 }
 

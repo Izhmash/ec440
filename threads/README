@@ -1,3 +1,5 @@
+Here I've implemented lock, unlock, pthread_join, and the semaphore functions.  There are two new structures: one for the semaphore and one for the semaphore queue.
+
 Issues:
 It seems that there are errors on Bandit with the return value from pthread_join().
 Everything works for semaphores except the producer-consumer scenario.  However, this test passed previously when I had a version of the program that certainly shouldn't have worked, which was a little confusing.
