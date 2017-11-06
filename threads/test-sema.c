@@ -1,7 +1,6 @@
 #include<stdio.h>
 #include<pthread.h>
 #include<stdlib.h>
-#include "queue.h"
 #include <semaphore.h>
 
 #define THREAD_CNT 3

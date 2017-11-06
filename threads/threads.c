@@ -15,7 +15,7 @@
 
 #define MAX_THREADS 128
 #define STACK_SIZE  32767
-#define ALRM_TIME   50
+#define ALRM_TIME   50000
 #define SPIDX       4
 #define PCIDX       5
 
@@ -155,6 +155,8 @@ void setup_threads()
     pthreads[0].id = 0;
     pthreads[0].stack_store = NULL;
     pthreads[0].state = READY;
+    pthreads[0].prev_state = EMPTY;
+    pthreads[0].exit_code = NULL;
     pthreads[0].merger = -1;
 
     setjmp(pthreads[0].env); // ready root thread
@@ -167,7 +169,7 @@ void setup_threads()
     struct itimerval timer;
 	timer.it_value.tv_usec = 10;
 	timer.it_value.tv_sec = 0;
-	timer.it_interval.tv_usec = ALRM_TIME * 1000;
+	timer.it_interval.tv_usec = ALRM_TIME;
 	timer.it_interval.tv_sec = 0;	
 	setitimer(ITIMER_REAL, &timer, NULL);
 }
@@ -244,8 +246,8 @@ void pthread_exit(void *value_ptr)
 
     thread_map[cur_thread] = 0;
 
-    pthreads[cur_thread].state = EXITED;
     pthreads[cur_thread].exit_code = value_ptr;
+    pthreads[cur_thread].state = EXITED;
 
     if (pthreads[pthreads[cur_thread].merger].state == BLOCKED) {
         if (pthreads[cur_thread].merger >= 0) {
@@ -269,10 +271,10 @@ pthread_t pthread_self(void)
 int pthread_join(pthread_t thread, void **value_ptr)
 {
 	value_ptr = &pthreads[thread].exit_code;	
-	pthread_t cur_state = pthreads[thread].state;
-	pthread_t cur_merg = pthreads[thread].merger;
-	if (cur_state != EMPTY && cur_state != EXITED) {
-        if (cur_merg == -1) {
+	pthread_t target_state = pthreads[thread].state;
+	pthread_t target_merg = pthreads[thread].merger;
+	if (target_state != EMPTY && target_state != EXITED) {
+        if (target_merg == -1) {
             pthreads[cur_thread].prev_state = pthreads[cur_thread].state;
             pthreads[cur_thread].state = BLOCKED;
             pthreads[thread].merger = pthreads[cur_thread].id;
@@ -418,24 +420,3 @@ int sem_destroy(sem_t *sem)
     free(sema);
     return 0;
 }
-
-/*void make_stack(pthread_t tid)
-{
-    char stack[STACK_SIZE];
-    char new_addr;
-    if (MAX_THREADS < tid) {
-        longjmp(root_env, 1);
-    }
-    printf ("Thread %d stack base addr: %p\n", tid, &stack);
-
-    if (setjmp(pthreads[tid].env)) {
-        printf("Starting thread %d\n", tid);
-        pthreads[tid].function();
-        printf("Thread %d returned\n", tid);
-        kill_thread(tid);
-    } else {
-        printf("Thread %d created\n", tid);
-        pthreads[tid].stack_addr = &new_addr;
-        make_stack(tid + 1);
-    }
-}*/

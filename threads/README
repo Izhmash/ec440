@@ -1,7 +1,3 @@
-Issues: it currently fails the round-robin test on Bandit.
-Although I have a ualarm setup to interrupt the current thread
-every 50 ms, it seems that the other thread is not being given
-any execution time.
-Besides that issue, however, many threads can be created, multiple
-stacks can be allocated at once, and the main thread is solid
-without seg faults.
+Issues:
+It seems that there are errors on Bandit with the return value from pthread_join().
+Everything works for semaphores except the producer-consumer scenario.  However, this test passed previously when I had a version of the program that certainly shouldn't have worked, which was a little confusing.
