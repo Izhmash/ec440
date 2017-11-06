@@ -57,11 +57,17 @@ int main(int argc, char **argv)
 	for(i = 0; i<THREAD_CNT; i++) {
 		pthread_join(threads[i], NULL);
 	}*/
+    void *val;
     sem_init(&sema, 0, 1);
     pthread_t thread1;
     pthread_t thread2;
+    pthread_t thread3;
     pthread_create(&thread1, NULL, itsafunc, (void *)(10000));
     pthread_create(&thread2, NULL, itsafunc, (void *)(10000));
+    pthread_create(&thread3, NULL, itsafunc, (void *)(10000));
+
+    pthread_join(thread1, &val);
+    printf("End val = %d\n", (int)val);
     /*int i = 0;
     while(i < 100000) {
         //printf("i: %d\n", i);
@@ -69,6 +75,6 @@ int main(int argc, char **argv)
     }
     printf("i: %d\n", i);*/
     printf("Hey I'm finished!\n");
-
+    //sem_destroy(&sema);
     return 0;
 }

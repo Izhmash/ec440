@@ -97,10 +97,21 @@ void schedule()
             }
         }
         // Find the next thread    
+        int last_done = 1;
+
+        // XXX Don't run thread 0 unless it's the last thread
+        int i;
+        for (i = 1; i < MAX_THREADS; i++) {
+            if (thread_map[i] == 1) {
+                last_done = 0;
+            }
+        }
+
 		do {
             cur_thread++;
             if (cur_thread > MAX_THREADS - 1) {
                 cur_thread = 0;
+                if (!last_done) cur_thread = 1;
             }
         } while(pthreads[cur_thread].state != READY
 				&& pthreads[cur_thread].state != SETUP);
@@ -326,7 +337,7 @@ int sem_init(sem_t *sem, int pshared, unsigned value)
     sema->val = value;
 
     // Init struct
-    struct Queue *queue = init_queue(500);
+    struct Queue *queue = init_queue(128);
     sema->q = queue;
 
     sema->ready = 1;
@@ -358,7 +369,6 @@ int sem_wait(sem_t *sem)
         }*/
     } 
 
-    lock();
     sema->val--;
     unlock();
 
@@ -385,6 +395,7 @@ int sem_post(sem_t *sem)
             pthreads[thread].state = READY;
         }
         unlock();
+        schedule();
         // Jump to the sleepy thread that can now wake up
         //longjmp(pthreads[thread].env, 1);
     }
