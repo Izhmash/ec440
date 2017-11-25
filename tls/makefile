@@ -1,6 +1,6 @@
 CC=gcc -Wall -g -m32
 all: threadlib main
-	$(CC) -o main main.o tls.o -lpthread
+	$(CC) -o main main.o tls.o -lpthread -Wall
 
 main: main.c
 	$(CC) -c -o main.o main.c

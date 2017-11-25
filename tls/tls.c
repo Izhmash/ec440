@@ -65,7 +65,7 @@ int tls_create(unsigned int size)
     for (i = 0; i < MAX_TLS; i++) {
         // If TLS space is unused...
         //printf("%d\n", tls_list[i].thread);
-        if ((int) tls_list[i].thread < 0) {
+        if (tls_list[i].thread == 0) {
             //printf("%d\n", i);
             new_tls = &tls_list[i];
             break;
@@ -120,30 +120,32 @@ int tls_write(unsigned int offset, unsigned int length, char *buffer)
 
     struct page *cur_page;
     for (i = start_page; i < start_page + num_pages; i++) {
-        cur_page = read_tls->pages[i];
+        //cur_page = read_tls->pages[i];
 
         // Unlock page
-        mprotect(cur_page->addr, PAGE_SIZE, PROT_WRITE);
+        mprotect(read_tls->pages[i]->addr, PAGE_SIZE, PROT_WRITE);
 
         // Copy-on-write for TLS's that share
-        if (cur_page->users > 1) {
+        if (read_tls->pages[i]->users > 1) {
             // Page is no longer shared
-            cur_page->users--;
+            read_tls->pages[i]->users--;
 
             // Copy old page to new page
-            void *new_addr = mmap(NULL, PAGE_SIZE, PROT_WRITE, MAP_ANONYMOUS
+            void *new_addr = NULL;
+            new_addr = mmap(NULL, PAGE_SIZE, PROT_WRITE, MAP_ANONYMOUS
                     | MAP_PRIVATE, -1, 0);
-            memcpy(new_addr, cur_page->addr, PAGE_SIZE);
-            mprotect(cur_page->addr, PAGE_SIZE, PROT_NONE);
+            memcpy(new_addr, read_tls->pages[i]->addr, PAGE_SIZE);
+            mprotect(read_tls->pages[i]->addr, PAGE_SIZE, PROT_NONE);
 
             // Overwrite old page reference
-            cur_page = calloc(1, sizeof(struct page));
-            cur_page->users = 1;
-            cur_page->addr = new_addr;
+            read_tls->pages[i] = calloc(1, sizeof(struct page));
+            read_tls->pages[i]->users = 1;
+            read_tls->pages[i]->addr = new_addr;
         }
 
         // Write data
         int bytes = offset % PAGE_SIZE;
+        cur_page = read_tls->pages[i];
         if (num_pages) {
             // First check if only 1 page is written
             int write_addr = (int) cur_page->addr + bytes;
@@ -171,6 +173,9 @@ int tls_write(unsigned int offset, unsigned int length, char *buffer)
     return 0;
 }
 
+/*
+ * Read from thread local storage
+*/
 int tls_read(unsigned int offset, unsigned int length, char *buffer)
 {
     struct tls *write_tls;
@@ -231,6 +236,65 @@ int tls_read(unsigned int offset, unsigned int length, char *buffer)
     return 0;
 }
 
+/*
+ * Clone local storage of target pthread
+*/
+int tls_clone(pthread_t tid)
+{
+    struct tls *clone_target = NULL;
+    struct tls *cur_tls = NULL;
+
+    // Check for TLS existence just as tls_create does
+    pthread_t cur_thread = pthread_self();
+    int i;
+    for (i = 0; i < MAX_TLS; i++) {
+        if (pthread_equal(tls_list[i].thread, cur_thread)) {
+            return -1;
+        }
+    }
+
+    // Initialize the current thread's TLS
+    int cur_has_tls = FALSE;
+    for (i = 0; i < MAX_TLS; i++) {
+        if (tls_list[i].thread == 0) {
+            cur_tls = &tls_list[i];
+            cur_has_tls = TRUE;
+            break;
+        }
+    }
+    if (!cur_has_tls) return -1;
+
+    // Save current thread's ID to TLS
+    cur_tls->thread = cur_thread;
+    
+    // Get the clone target thread's TLS
+    int target_has_tls = FALSE;
+    for (i = 0; i < MAX_TLS; i++) {
+        if (pthread_equal(tls_list[i].thread, tid)) {
+            clone_target = &tls_list[i];
+            target_has_tls = TRUE;
+            break;
+        }
+    }
+    if (!target_has_tls) return -1;
+
+    // Prepare new TLS & point to target
+    cur_tls->size = clone_target->size;
+    int num_pages = get_pages(cur_tls->size);
+    cur_tls->pages = calloc(num_pages, sizeof(struct page*));
+
+    for (i = 0; i < num_pages; i++) {
+        cur_tls->pages[i] = clone_target->pages[i];
+        cur_tls->pages[i]->users++;
+    }
+
+    tls_count++;
+    return 0;
+}
+
+/*
+ * Free thread local storage
+*/
 int tls_destroy()
 {
     struct tls *destroy_tls;
@@ -260,8 +324,6 @@ int tls_destroy()
             munmap(cur_page->addr, PAGE_SIZE);
             free(cur_page);
         }
-
-        
     }
     free(destroy_tls->pages);
     destroy_tls->pages = NULL;
@@ -272,12 +334,6 @@ int tls_destroy()
     tls_count--;
     return 0;
 }
-
-int tls_clone(pthread_t tid)
-{
-    return 0;
-}
-
 
 void page_fault_handler(int sig, siginfo_t *sigi, void *context)
 {
@@ -327,7 +383,7 @@ void setup()
 
     int i;
     for(i = 0; i < MAX_TLS; i++) {
-        tls_list[i].thread = -1;
+        tls_list[i].thread = 0;
     }
 }
 
