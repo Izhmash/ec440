@@ -10,9 +10,15 @@ int tls_read(unsigned int offset, unsigned int length, char * buffer);
 
 pthread_t tid;
 pthread_t tid2;
+pthread_t tid3;
+
+void * do_something2(void *arg);
 
 void * do_something(void *arg)
 {
+	pthread_create(&tid3, NULL, do_something2, NULL);
+
+    pthread_join(tid3, NULL);
 	arg = NULL;
 	tls_clone(tid);
     //tls_create(4100);
@@ -31,6 +37,33 @@ void * do_something(void *arg)
 	for(i = 0; i < 10; i++)
 	{
 		printf("buffer2 - should be %d: %d\n",i*2, buffer[i]);
+	}
+	printf("destroy success: %d\n",tls_destroy());
+
+	
+	return arg;
+}
+
+void * do_something2(void *arg)
+{
+	arg = NULL;
+	tls_clone(tid);
+    //tls_create(4100);
+	char buffa1[10];
+
+	int i;
+	for(i = 0; i < 10; i++)
+	{
+		buffa1[i] = i*3;
+	}
+	tls_write(0, 10, buffa1);
+
+	char buffer[10];
+	tls_read(0, 10, buffer);
+
+	for(i = 0; i < 10; i++)
+	{
+		printf("buffer1 - should be %d: %d\n",i*3, buffer[i]);
 	}
 	printf("destroy success: %d\n",tls_destroy());
 
