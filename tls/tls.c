@@ -11,7 +11,7 @@
 #define PAGE_SIZE getpagesize()
 #define TRUE 1
 #define FALSE 0
-#define MAX_TLS 256
+#define MAX_TLS 128
 
 struct tls {
     pthread_t thread;
@@ -144,7 +144,11 @@ int tls_write(unsigned int offset, unsigned int length, char *buffer)
 
         // Write data
         int bytes = offset % PAGE_SIZE;
-        if (i == start_page) {
+        if (num_pages) {
+            // First check if only 1 page is written
+            int write_addr = (int) cur_page->addr + bytes;
+            memcpy((void *) write_addr, (void *) buffer, length);
+        } else if (i == start_page) {
             // Add offset since 1st page
             int write_addr = (int) cur_page->addr + bytes;
             memcpy((void *) write_addr, (void *) buffer, PAGE_SIZE - bytes);
@@ -200,7 +204,11 @@ int tls_read(unsigned int offset, unsigned int length, char *buffer)
 
         // Read data
         int bytes = offset % PAGE_SIZE;
-        if (i == start_page) {
+        if (num_pages) {
+            // First check if only 1 page is read
+            int read_addr = (int) cur_page->addr + bytes;
+            memcpy((void *) buffer, (void *) read_addr, length);
+        } else if (i == start_page) {
             // Add offset since 1st page
             int read_addr = (int) cur_page->addr + bytes;
             memcpy((void *) buffer, (void *) read_addr, PAGE_SIZE - bytes);
@@ -294,8 +302,10 @@ void page_fault_handler(int sig, siginfo_t *sigi, void *context)
     if (!tls_related) { 
         // Raise signal if not related to TLS
         act.sa_sigaction = (void *) SIG_DFL;
-        sigaction(SIGSEGV, &act, (void *)page_fault_handler);
+        //sigaction(SIGSEGV, &act, (void *)page_fault_handler);
         //sigaction(SIGBUS, &act, (void *) page_fault_handler);
+        signal(SIGSEGV, SIG_DFL);
+        signal(SIGBUS, SIG_DFL);
         raise(sig);
     }
 }
@@ -313,7 +323,7 @@ void setup()
     act.sa_sigaction = page_fault_handler;
 
     sigaction(SIGSEGV, &act, NULL);
-    //sigaction(SIGBUS, &act, NULL);
+    sigaction(SIGBUS, &act, NULL);
 
     int i;
     for(i = 0; i < MAX_TLS; i++) {
