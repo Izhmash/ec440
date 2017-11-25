@@ -1,0 +1,16 @@
+TLS Library for OP SYS
+
+Structs: tls and page.  TLS contains an array of page struct pointers to keep track of its own memory.
+
+Memory mapping: Memory mapping is done using mmap and permissions setting is done using mprotect.
+-> Each page holds PAGE_SIZE memory that is allocated with calloc.
+
+Threads can create, write, read, and destroy their one allowed TLS.
+-> Threads may also clone a TLS from another thread.  After cloning, a copy-on-write policy is enforced.
+
+If a thread tries to access another thread's memory, the segfault is caught and the offending thread + TLS pair are destroyed.
+-> During handling, the program checks if the signal was TLS-related.  If not, the signal is handled by SIG_DFL.
+
+Current state: Every function works as intended.  Most complicated test creates one TLS, writes and clones it in a 2nd thread,
+and then clones again in a third thread.  Each of the cloned threads tests copy-on-write and reading with success.
+-> Destroy reports its state, with `0` being a passed test.
