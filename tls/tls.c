@@ -27,8 +27,6 @@ struct page {
 static struct tls tls_list[MAX_TLS];
 int tls_count;
 
-// Should semaphores be used?
-
 static struct sigaction act;
 static int is_setup = FALSE;
 
@@ -64,9 +62,7 @@ int tls_create(unsigned int size)
     // Add TLS to list
     for (i = 0; i < MAX_TLS; i++) {
         // If TLS space is unused...
-        //printf("%d\n", tls_list[i].thread);
         if (tls_list[i].thread == 0) {
-            //printf("%d\n", i);
             new_tls = &tls_list[i];
             break;
         }
@@ -75,14 +71,12 @@ int tls_create(unsigned int size)
     // Setup TLS
     new_tls->thread = cur_thread;
     new_tls->size = size;
-    //new_tls->pages = malloc(get_pages(size) * sizeof(struct page*));
     new_tls->pages = calloc(get_pages(size), sizeof(struct page*));
     
     for (i = 0; i < get_pages(size); i++) {
         void *new_addr = mmap(NULL, PAGE_SIZE, PROT_NONE, MAP_ANONYMOUS
                 | MAP_PRIVATE, -1, 0);
         new_tls->pages[i] = calloc(1, sizeof(struct page));
-        //new_tls->pages[i] = malloc(sizeof(struct page));
         new_tls->pages[i]->addr = new_addr;
         new_tls->pages[i]->users = 1;
     }
@@ -120,8 +114,6 @@ int tls_write(unsigned int offset, unsigned int length, char *buffer)
 
     struct page *cur_page;
     for (i = start_page; i < start_page + num_pages; i++) {
-        //cur_page = read_tls->pages[i];
-
         // Unlock page
         mprotect(read_tls->pages[i]->addr, PAGE_SIZE, PROT_WRITE);
 
@@ -358,10 +350,8 @@ void page_fault_handler(int sig, siginfo_t *sigi, void *context)
     if (!tls_related) { 
         // Raise signal if not related to TLS
         act.sa_sigaction = (void *) SIG_DFL;
-        //sigaction(SIGSEGV, &act, (void *)page_fault_handler);
-        //sigaction(SIGBUS, &act, (void *) page_fault_handler);
-        signal(SIGSEGV, SIG_DFL);
-        signal(SIGBUS, SIG_DFL);
+        sigaction(SIGSEGV, &act, (void *)page_fault_handler);
+        sigaction(SIGBUS, &act, (void *) page_fault_handler);
         raise(sig);
     }
 }
