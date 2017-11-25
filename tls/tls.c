@@ -150,11 +150,12 @@ int tls_write(unsigned int offset, unsigned int length, char *buffer)
         } else if (i == start_page + num_pages - 1) {
             // Last page
             int write_addr = (int) cur_page->addr;
-            memcpy((void *) write_addr, (void *) buffer, length - write_prog);
+            int read_addr = (int) buffer + write_prog;
+            memcpy((void *) write_addr, (void *) read_addr, length-write_prog);
         } else {
             // Middle page
-            int data_addr = (int) buffer + write_prog;
-            memcpy(cur_page->addr, (void *) data_addr, PAGE_SIZE);
+            int read_addr = (int) buffer + write_prog;
+            memcpy(cur_page->addr, (void *) read_addr, PAGE_SIZE);
             write_prog += PAGE_SIZE;
         }
 
