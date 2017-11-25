@@ -138,7 +138,7 @@ int tls_write(unsigned int offset, unsigned int length, char *buffer)
         // Write data
         int bytes = offset % PAGE_SIZE;
         cur_page = read_tls->pages[i];
-        if (num_pages) {
+        if (num_pages == 1) {
             // First check if only 1 page is written
             int write_addr = (int) cur_page->addr + bytes;
             memcpy((void *) write_addr, (void *) buffer, length);
@@ -202,7 +202,7 @@ int tls_read(unsigned int offset, unsigned int length, char *buffer)
 
         // Read data
         int bytes = offset % PAGE_SIZE;
-        if (num_pages) {
+        if (num_pages == 1) {
             // First check if only 1 page is read
             int read_addr = (int) cur_page->addr + bytes;
             memcpy((void *) buffer, (void *) read_addr, length);
