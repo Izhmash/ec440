@@ -343,6 +343,7 @@ void page_fault_handler(int sig, siginfo_t *sigi, void *context)
                 // Kill thread if it broke the rules
                 tls_destroy();
                 pthread_exit(NULL);
+                tls_related = TRUE;
             }
         }
     }
