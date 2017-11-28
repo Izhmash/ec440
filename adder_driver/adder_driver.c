@@ -1,6 +1,5 @@
 /*
- *  chardev.c: Creates a read-only char device that says how many times
- *  you've read from the dev file
+ *  adder_driver.c: Accumulates integer values written by the user
  */
 
 #include <linux/kernel.h>
@@ -24,7 +23,7 @@ static ssize_t device_read(struct file *, char *, size_t, loff_t *);
 static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 
 #define SUCCESS 0
-#define DEVICE_NAME "chardev"	/* Dev name as it appears in /proc/devices   */
+#define DEVICE_NAME "adder_driver"	/* Dev name as it appears in /proc/devices   */
 #define BUF_LEN 80		/* Max length of the message from the device */
 
 /* 
