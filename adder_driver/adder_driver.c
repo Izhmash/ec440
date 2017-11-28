@@ -36,8 +36,9 @@ static int Device_Open = 0;	/* Is device open?
 static char msg[BUF_LEN];	/* The msg the device will give when asked */
 static char *msg_Ptr;
 
-static char message[256] = {0};
-static short size_of_message;
+//static char message[256] = {0};
+//static short size_of_message;
+static long number_holder;
 
 static struct file_operations fops = {
 	.read = device_read,
@@ -171,9 +172,12 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 static ssize_t
 device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 {
-    sprintf(message, "%s(%zu characters)", buff, len);
-    size_of_message = strlen(message);
-    printk(KERN_INFO "adder_driver: %zu received\n", len);
+    char *end_ptr;
+    //sprintf(message, "%s(%zu characters)", buff, len);
+    number_holder += simple_strtol(buff, &end_ptr, 10);
+    if (end_ptr != NULL) {
+        printk(KERN_INFO "adder_driver: val = %ld\n", number_holder);
+    }
 	//printk(KERN_ALERT "Sorry, this operation isn't supported.\n");
 	//return -EINVAL;
     return len;
