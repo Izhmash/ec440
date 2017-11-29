@@ -1,10 +1,14 @@
 /*
- *  adder_driver.c: Accumulates integer values written by the user
+ *  adder.c: Accumulates integer values written by the user
  */
 
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/fs.h>
+#include <linux/string.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
+#include <linux/ctype.h>
 #include <asm/uaccess.h>	/* for put_user */
 
 MODULE_LICENSE("GPL");
@@ -22,8 +26,11 @@ static int device_release(struct inode *, struct file *);
 static ssize_t device_read(struct file *, char *, size_t, loff_t *);
 static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 
+char *strdup(const char *str);
+int has_letter(const char *s);
+
 #define SUCCESS 0
-#define DEVICE_NAME "adder_driver"	/* Dev name as it appears in /proc/devices   */
+#define DEVICE_NAME "adder"	/* Dev name as it appears in /proc/devices   */
 #define BUF_LEN 80		/* Max length of the message from the device */
 
 /* 
@@ -55,7 +62,7 @@ int init_module(void)
         Major = register_chrdev(0, DEVICE_NAME, &fops);
 
 	if (Major < 0) {
-	  printk(KERN_ALERT "Registering adder_driver failed with %d\n", Major);
+	  printk(KERN_ALERT "Registering adder failed with %d\n", Major);
 	  return Major;
 	}
 
@@ -65,6 +72,8 @@ int init_module(void)
 	printk(KERN_INFO "Try various minor numbers. Try to cat and echo to\n");
 	printk(KERN_INFO "the device file.\n");
 	printk(KERN_INFO "Remove the device file and module when done.\n");
+
+	number_holder = 0;
 
 	return SUCCESS;
 }
@@ -93,7 +102,6 @@ void cleanup_module(void)
  */
 static int device_open(struct inode *inode, struct file *file)
 {
-	number_holder = 0;
 
 	if (Device_Open)
 		return -EBUSY;
@@ -179,15 +187,55 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 static ssize_t
 device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 {
-    char *end_ptr;
+    long value = 0;
+    char *input = strdup(buff);
+    //char *end_ptr;
+    char *token;
+    char delim[] = " /,\n";
+    int first = 1;
     //sprintf(message, "%s(%zu characters)", buff, len);
     if (buff != NULL) {
-        number_holder += simple_strtol(buff, &end_ptr, 10);
+        //token = strsep(&input, delim);
+        printk(KERN_INFO "adder: input = %s\n", input);
+        while ((token = strsep(&input, delim)) != NULL) {
+            printk(KERN_INFO "adder: token = %s\n", token);
+            if (!has_letter(token) && token[0] != '\0') {
+                sscanf(token, "%ld", &value);
+                //number_holder += simple_strtol(token, &end_ptr, 10);
+                printk(KERN_INFO "adder: input = %ld\n", value);
+                //if (first) {
+                //    number_holder += value - 1; 
+                //    first = 0;
+                //} else {
+                    number_holder += value;
+                //}
+                //token = strsep (&input, delim);
+            }
+        }
     } else {
-        printk(KERN_ALERT "adder_driver: null input value\n");
+        printk(KERN_ALERT "adder: null input value\n");
     }
-    if (end_ptr != NULL) {
-        printk(KERN_INFO "adder_driver: val = %ld\n", number_holder);
-    }
+    printk(KERN_INFO "adder: val = %ld\n", number_holder);
     return len;
+}
+
+char *strdup(const char *str)
+{
+    int n = strlen(str) + 1;
+    char *dup = vmalloc((unsigned long) n);
+    if(dup)
+    {
+        strcpy(dup, str);
+    }
+    return dup;
+}
+
+
+int has_letter(const char *s)
+{
+    while (*s) {
+        if (isdigit(*s++) == 0) return 1;
+    }
+
+    return 0;
 }
