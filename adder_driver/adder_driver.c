@@ -103,8 +103,8 @@ void cleanup_module(void)
 static int device_open(struct inode *inode, struct file *file)
 {
 
-	if (Device_Open)
-		return -EBUSY;
+	//if (Device_Open)
+	//	return -EBUSY;
 
 	Device_Open++;
 	//sprintf(msg, "I already told you %d times Hello world!\n", counter++);
