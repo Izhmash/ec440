@@ -55,7 +55,7 @@ int init_module(void)
         Major = register_chrdev(0, DEVICE_NAME, &fops);
 
 	if (Major < 0) {
-	  printk(KERN_ALERT "Registering char device failed with %d\n", Major);
+	  printk(KERN_ALERT "Registering adder_driver failed with %d\n", Major);
 	  return Major;
 	}
 
@@ -93,13 +93,15 @@ void cleanup_module(void)
  */
 static int device_open(struct inode *inode, struct file *file)
 {
-	static int counter = 0;
+	number_holder = 0;
 
 	if (Device_Open)
 		return -EBUSY;
 
 	Device_Open++;
-	sprintf(msg, "I already told you %d times Hello world!\n", counter++);
+	//sprintf(msg, "I already told you %d times Hello world!\n", counter++);
+	printk(KERN_INFO "Open!\n");
+	sprintf(msg, "Current adder value: %ld\n", number_holder);
 	msg_Ptr = msg;
 	try_module_get(THIS_MODULE);
 
@@ -143,6 +145,10 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 	if (*msg_Ptr == 0)
 		return 0;
 
+    // Update the read message
+	sprintf(msg, "Current adder value: %ld\n", number_holder);
+	msg_Ptr = msg;
+
 	/* 
 	 * Actually put the data into the buffer 
 	 */
@@ -160,6 +166,7 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 		bytes_read++;
 	}
 
+
 	/* 
 	 * Most read functions return the number of bytes put into the buffer
 	 */
@@ -174,11 +181,13 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 {
     char *end_ptr;
     //sprintf(message, "%s(%zu characters)", buff, len);
-    number_holder += simple_strtol(buff, &end_ptr, 10);
+    if (buff != NULL) {
+        number_holder += simple_strtol(buff, &end_ptr, 10);
+    } else {
+        printk(KERN_ALERT "adder_driver: null input value\n");
+    }
     if (end_ptr != NULL) {
         printk(KERN_INFO "adder_driver: val = %ld\n", number_holder);
     }
-	//printk(KERN_ALERT "Sorry, this operation isn't supported.\n");
-	//return -EINVAL;
     return len;
 }
