@@ -27,7 +27,7 @@ static ssize_t device_read(struct file *, char *, size_t, loff_t *);
 static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 
 char *strdup(const char *str);
-int has_letter(const char *s);
+int has_non_num(char *s);
 
 #define SUCCESS 0
 #define DEVICE_NAME "adder"	/* Dev name as it appears in /proc/devices   */
@@ -98,7 +98,7 @@ void cleanup_module(void)
 
 /* 
  * Called when a process tries to open the device file, like
- * "cat /dev/mycharfile"
+ * "cat /dev/adder"
  */
 static int device_open(struct inode *inode, struct file *file)
 {
@@ -182,35 +182,46 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 }
 
 /*  
- * Called when a process writes to dev file: echo "hi" > /dev/hello 
+ * Called when a process writes to dev file: echo "98" > /dev/adder
  */
 static ssize_t
 device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 {
     long value = 0;
     char *input = strdup(buff);
-    //char *end_ptr;
     char *token;
     char delim[] = " /,\n";
-    int first = 1;
-    //sprintf(message, "%s(%zu characters)", buff, len);
-    if (buff != NULL) {
-        //token = strsep(&input, delim);
+    int i;
+    
+    // End input buffer before garbage
+    for (i = 0; i < len; i++) {
+        if (input[i] == '\n') {
+            printk(KERN_INFO "adder: enter is at index %d\n", i);
+            input[i] = '\0';
+        }
+    }
+    
+    if (input != NULL) {
         printk(KERN_INFO "adder: input = %s\n", input);
+        // Tokenize input and add to the current saved value
+        // TODO Need to put null char before the buffer garbage
+        
+        // XXX REAL VALUES NOT PASSING
+        if (has_non_num(input) || input[0] == '\0') {
+            printk(KERN_ALERT "adder: bad input value\n");
+            return -EINVAL;
+        }
+
         while ((token = strsep(&input, delim)) != NULL) {
             printk(KERN_INFO "adder: token = %s\n", token);
-            if (!has_letter(token) && token[0] != '\0') {
+            //if (!has_non_num(token) && token[0] != '\0') {
                 sscanf(token, "%ld", &value);
-                //number_holder += simple_strtol(token, &end_ptr, 10);
-                printk(KERN_INFO "adder: input = %ld\n", value);
-                //if (first) {
-                //    number_holder += value - 1; 
-                //    first = 0;
-                //} else {
-                    number_holder += value;
-                //}
-                //token = strsep (&input, delim);
-            }
+                //printk(KERN_INFO "adder: input = %ld\n", value);
+                number_holder += value;
+            //} else {
+            //    printk(KERN_ALERT "adder: bad input value\n");
+            //    return -EINVAL;
+            //}
         }
     } else {
         printk(KERN_ALERT "adder: null input value\n");
@@ -219,10 +230,13 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
     return len;
 }
 
+/*
+ * Copy a string and return a pointer
+*/
 char *strdup(const char *str)
 {
     int n = strlen(str) + 1;
-    char *dup = vmalloc((unsigned long) n);
+    char *dup = kmalloc((unsigned long) n, GFP_USER);
     if(dup)
     {
         strcpy(dup, str);
@@ -231,10 +245,14 @@ char *strdup(const char *str)
 }
 
 
-int has_letter(const char *s)
+/*
+ * Check if a string has any non-numbers in it
+*/
+int has_non_num(char *s)
 {
-    while (*s) {
-        if (isdigit(*s++) == 0) return 1;
+    while (*s != '\0') {
+        if (isdigit(*s) == 0 && *s != ' ') return 1;
+        s++;
     }
 
     return 0;

@@ -14,7 +14,7 @@ int main() {
 	sprintf(num, "%d", i);
         write(fd, num, strlen(num));
     }
-    sleep(1);
+    //sleep(1);
     //}
     while(1) {
         ssize_t size = read(fd, &bytes, 64);
