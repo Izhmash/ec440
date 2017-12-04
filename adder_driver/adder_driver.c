@@ -1,5 +1,5 @@
 /*
- *  adder.c: Accumulates integer values written by the user
+ *  adder_driver.c: Accumulates integer values written by the user
  */
 
 #include <linux/kernel.h>
@@ -40,12 +40,10 @@ int has_num(char *s);
 
 static int Major;		/* Major number assigned to our device driver */
 static int Device_Open = 0;	/* Is device open?  
-				 * Used to prevent multiple access to device */
+				 * Used to prevent greater than R+W access */
 static char msg[BUF_LEN];	/* The msg the device will give when asked */
 static char *msg_Ptr;
 
-//static char message[256] = {0};
-//static short size_of_message;
 static long number_holder;
 
 static struct file_operations fops = {
@@ -104,11 +102,10 @@ void cleanup_module(void)
 static int device_open(struct inode *inode, struct file *file)
 {
 	// If two processes have opened the adder...
-	if (Device_Open == 2)
+	if (Device_Open >= 2)
 		return -EBUSY;
 
 	Device_Open++;
-	//sprintf(msg, "I already told you %d times Hello world!\n", counter++);
 	printk(KERN_INFO "Open!\n");
 	sprintf(msg, "Current adder value: %ld\n", number_holder);
 	msg_Ptr = msg;
@@ -245,6 +242,9 @@ char *strdup(const char *str)
 */
 int has_non_num(char *s)
 {
+    // Return immediately if there are no numbers
+    if (!has_num(s)) return 1;
+
     while (*s != '\0') {
         // Allow spaces and dashes for negative numbers
         if (isdigit(*s) == 0 && *s != ' ' && *s != '-') return 1;
