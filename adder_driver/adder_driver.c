@@ -213,15 +213,9 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 
         while ((token = strsep(&input, delim)) != NULL) {
             printk(KERN_INFO "adder: token = %s\n", token);
-            //if (!has_non_num(token) && token[0] != '\0') {
             if (has_num(token)) {
                 sscanf(token, "%ld", &value);
-                //printk(KERN_INFO "adder: input = %ld\n", value);
                 number_holder += value;
-            //} else {
-            //    printk(KERN_ALERT "adder: bad input value\n");
-            //    return -EINVAL;
-            //}
             }
         }
     } else {
@@ -252,7 +246,8 @@ char *strdup(const char *str)
 int has_non_num(char *s)
 {
     while (*s != '\0') {
-        if (isdigit(*s) == 0 && *s != ' ') return 1;
+        // Allow spaces and dashes for negative numbers
+        if (isdigit(*s) == 0 && *s != ' ' && *s != '-') return 1;
         s++;
     }
 
