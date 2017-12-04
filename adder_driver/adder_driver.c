@@ -28,6 +28,7 @@ static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 
 char *strdup(const char *str);
 int has_non_num(char *s);
+int has_num(char *s);
 
 #define SUCCESS 0
 #define DEVICE_NAME "adder"	/* Dev name as it appears in /proc/devices   */
