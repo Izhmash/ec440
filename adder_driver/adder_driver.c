@@ -204,9 +204,7 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
     if (input != NULL) {
         printk(KERN_INFO "adder: input = %s\n", input);
         // Tokenize input and add to the current saved value
-        // TODO Need to put null char before the buffer garbage
         
-        // XXX REAL VALUES NOT PASSING
         if (has_non_num(input) || input[0] == '\0') {
             printk(KERN_ALERT "adder: bad input value\n");
             return -EINVAL;
@@ -215,6 +213,7 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
         while ((token = strsep(&input, delim)) != NULL) {
             printk(KERN_INFO "adder: token = %s\n", token);
             //if (!has_non_num(token) && token[0] != '\0') {
+            if (has_num(token)) {
                 sscanf(token, "%ld", &value);
                 //printk(KERN_INFO "adder: input = %ld\n", value);
                 number_holder += value;
@@ -222,6 +221,7 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
             //    printk(KERN_ALERT "adder: bad input value\n");
             //    return -EINVAL;
             //}
+            }
         }
     } else {
         printk(KERN_ALERT "adder: null input value\n");
@@ -252,6 +252,19 @@ int has_non_num(char *s)
 {
     while (*s != '\0') {
         if (isdigit(*s) == 0 && *s != ' ') return 1;
+        s++;
+    }
+
+    return 0;
+}
+
+/*
+ * Check if a string has no numbers
+*/
+int has_num(char *s)
+{
+    while (*s != '\0') {
+        if (isdigit(*s) == 1) return 1;
         s++;
     }
 
