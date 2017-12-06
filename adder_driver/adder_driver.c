@@ -215,8 +215,6 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
     idx += input_idx;
     memcpy((void *) local_input, (void *) input_buf, BUF_LEN);
 
-    // XXX TESTING
-    //*input = '\0';
     cur_char = local_input[idx - 1];
     printk(KERN_INFO "adder: input_buf = %s\n", input_buf);
     printk(KERN_INFO "adder: idx = %d\n", input_idx);
@@ -275,6 +273,8 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
     //}
     }
     printk(KERN_INFO "adder: val = %ld\n", number_holder);
+	sprintf(msg, "Current adder value: %ld\n", number_holder);
+	msg_Ptr = msg;
     return len;
 }
 
