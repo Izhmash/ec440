@@ -10,6 +10,7 @@ int main() {
     char num[32];
     int fd = open("/dev/adder", O_RDWR);
     //while(1) {
+    // write values; end result should be 45
     for (i = 0; i < 10; i++) {
 	sprintf(num, "%d", i);
         write(fd, num, strlen(num));

@@ -44,6 +44,10 @@ static int Device_Open = 0;	/* Is device open?
 static char msg[BUF_LEN];	/* The msg the device will give when asked */
 static char *msg_Ptr;
 
+static char input_buf[BUF_LEN];
+static char *input;
+static int input_idx = 0;
+
 static long number_holder;
 
 static struct file_operations fops = {
@@ -73,6 +77,7 @@ int init_module(void)
 	printk(KERN_INFO "Remove the device file and module when done.\n");
 
 	number_holder = 0;
+    input = input_buf;
 
 	return SUCCESS;
 }
@@ -185,12 +190,48 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 static ssize_t
 device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 {
+    char cur_char;
+    const char local_input[BUF_LEN];
     long value = 0;
-    char *input = strdup(buff);
+    char *cur_input = strdup(buff);
+    //char *input_Ptr = strdup(buff);
+
     char *token;
     char delim[] = " /,\n";
     int i;
+    int idx = 0;
+
+    if (cur_input != NULL) {
+        printk(KERN_INFO "adder: input = %s\n", cur_input);
+        for (i = 0; i < len; i++) {
+            *input = cur_input[i];
+            input++;
+            input_idx++;
+        }
+    } 
+
+    idx += input_idx;
+    memcpy((void *) local_input, (void *) input_buf, BUF_LEN);
+
+    // XXX TESTING
+    //*input = '\0';
+    cur_char = local_input[idx - 1];
+    printk(KERN_INFO "adder: input_buf = %s\n", input_buf);
+    printk(KERN_INFO "adder: idx = %d\n", input_idx);
+    printk(KERN_INFO "adder: cur_char = %d\n", (int)cur_char);
+
+    if (has_non_num(input_buf)) {
+        // clear buffer
+        memset(input_buf, 0, BUF_LEN);
+        printk(KERN_ALERT "adder: bad input value\n");
+        return -EINVAL;
+    }
     
+    if (input_buf[idx - 1] ==  ' ' || input_buf[idx - 2] == '\0' ||
+            (int) cur_char == 32 || (int) cur_char == 10) {
+    printk(KERN_INFO "adder: adding value(s)...\n");
+    //*input = '\n';
+    input = input_buf;
     // End input buffer before garbage
     for (i = 0; i < len; i++) {
         if (input[i] == '\n') {
@@ -215,8 +256,21 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
                 number_holder += value;
             }
         }
+
+        // Reset the input buffer pointer
+        input = input_buf;
+        input_idx = 0;
+        /*for (i = 0; i < BUF_LEN; i++) {
+            input_buf[i] = 'X';
+        }*/
+        memset((void *) input_buf, 0, BUF_LEN);
+        //memset((void *) input, 0, BUF_LEN);
     } else {
         printk(KERN_ALERT "adder: null input value\n");
+    }
+    //else {
+        // twiddle yer thumbs
+    //}
     }
     printk(KERN_INFO "adder: val = %ld\n", number_holder);
     return len;
@@ -245,7 +299,7 @@ int has_non_num(char *s)
     // Return immediately if there are no numbers
     if (!has_num(s)) return 1;
 
-    while (*s != '\0') {
+    while (*s != '\0' && *s != '\n') {
         // Allow spaces and dashes for negative numbers
         if (isdigit(*s) == 0 && *s != ' ' && *s != '-') return 1;
         s++;
@@ -264,5 +318,20 @@ int has_num(char *s)
         s++;
     }
 
+    return 0;
+}
+
+/*
+ * Check if an input has a space or null char in it
+*/
+int is_finished(char *s, int len)
+{
+    int i;
+    while (i < len) {
+        if (s[i] == ' ' || s[i] == '\0') {
+            return 1;
+        }
+        i++;
+    }
     return 0;
 }
