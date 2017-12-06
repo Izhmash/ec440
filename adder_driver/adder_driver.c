@@ -160,6 +160,8 @@ static ssize_t device_read(struct file *filp,	/* see include/linux/fs.h   */
 	sprintf(msg, "Current adder value: %ld\n", number_holder);
 	msg_Ptr = msg;
 
+    printk(KERN_INFO "Reading!\n");
+
 	/* 
 	 * Actually put the data into the buffer 
 	 */
@@ -220,16 +222,16 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
     printk(KERN_INFO "adder: idx = %d\n", input_idx);
     printk(KERN_INFO "adder: cur_char = %d\n", (int)cur_char);
 
+    
+    if (/*input_buf[idx - 1] ==  ' ' || input_buf[idx - 2] == '\0' ||*/
+            (int) cur_char == 32 || (int) cur_char == 10) {
+    printk(KERN_INFO "adder: adding value(s)...\n");
     if (has_non_num(input_buf)) {
         // clear buffer
         memset(input_buf, 0, BUF_LEN);
         printk(KERN_ALERT "adder: bad input value\n");
         return -EINVAL;
     }
-    
-    if (input_buf[idx - 1] ==  ' ' || input_buf[idx - 2] == '\0' ||
-            (int) cur_char == 32 || (int) cur_char == 10) {
-    printk(KERN_INFO "adder: adding value(s)...\n");
     //*input = '\n';
     input = input_buf;
     // End input buffer before garbage
