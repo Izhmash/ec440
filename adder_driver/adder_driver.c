@@ -228,7 +228,7 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
         // clear buffer
         memset(input_buf, 0, BUF_LEN);
         printk(KERN_ALERT "adder: bad input value\n");
-        return -EINVAL;
+        //return -EINVAL;
     }
     //*input = '\n';
     input = input_buf;
@@ -246,7 +246,7 @@ device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
         
         if (has_non_num(input) || input[0] == '\0') {
             printk(KERN_ALERT "adder: bad input value\n");
-            return -EINVAL;
+            //return -EINVAL;
         }
 
         while ((token = strsep(&input, delim)) != NULL) {
